@@ -6,7 +6,6 @@ extern crate core;
 
 #[macro_use]
 pub mod utils;
-pub mod asserts;
 pub mod chunked_array;
 pub mod config;
 pub mod datatypes;
