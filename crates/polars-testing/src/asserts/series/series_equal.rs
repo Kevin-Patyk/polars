@@ -91,3 +91,7 @@ impl SeriesEqualOptions {
         self
     }
 }
+
+pub fn assert_series_equal() {
+    todo!()
+}

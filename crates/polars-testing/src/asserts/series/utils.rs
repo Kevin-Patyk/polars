@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::ops::Not;
+use std::ops::{Not, BitAnd, BitOr};
 
 use polars_core::datatypes::unpack_dtypes;
 use polars_core::prelude::*;
@@ -78,17 +78,13 @@ pub fn comparing_nested_floats(left: &DataType, right: &DataType) -> bool {
 }
 
 /// Sorts the left and right Series in ascending order.
-pub fn sort_series(left: &Series, right: &Series) -> PolarsResult<(Series, Series)> {
-    let sorted_left = match left.sort(SortOptions::default()) {
+pub fn sort_series(s: &Series) -> PolarsResult<Series> {
+    let sorted_series = match s.sort(SortOptions::default()) {
         Ok(sorted) => sorted,
-        Err(_) => return Err(polars_err!(op = "sort", left.dtype())),
-    };
-    let sorted_right = match right.sort(SortOptions::default()) {
-        Ok(sorted) => sorted,
-        Err(_) => return Err(polars_err!(op = "sort", right.dtype())),
+        Err(_) => return Err(polars_err!(op = "sort", s.dtype())),
     };
 
-    Ok((sorted_left, sorted_right))
+    Ok(sorted_series)
 }
 
 /// Checks if two Series have the same amount of null values.
@@ -135,17 +131,13 @@ pub fn assert_series_nan_values_match(left: &Series, right: &Series) -> PolarsRe
 pub fn assert_series_values_within_tolerance(
     left: &Series,
     right: &Series,
-    unequal: &Series,
+    unequal: &ChunkedArray<BooleanType>,
     rtol: f64,
     atol: f64,
 ) -> PolarsResult<()> {
-    // Converts the `unequal` Series into a boolean mask
-    // `true` where values are unequal and `false` if they are equal
-    let unequal_bool = unequal.bool()?;
-
     // Keeps only elements in each Series where `unequal_bool` is `true`
-    let left_unequal = left.filter(unequal_bool)?;
-    let right_unequal = right.filter(unequal_bool)?;
+    let left_unequal = left.filter(unequal)?;
+    let right_unequal = right.filter(unequal)?;
 
     // Computes the element-wise absolute difference between  the two Series
     let difference = (&left_unequal - &right_unequal)?;
@@ -187,7 +179,89 @@ pub fn assert_series_values_within_tolerance(
     }
 }
 
-#[allow(unused_variables)]
+/// Assert that the values in both series are equal.
+pub fn assert_series_values_equal(
+    left: &Series,
+    right: &Series,
+    check_order: bool,
+    check_exact: bool,
+    rtol: f64,
+    atol: f64,
+    categorical_as_str: bool,
+) -> PolarsResult<()> {
+
+    // Handle categoricals
+    let (left, right) = if categorical_as_str {
+        (categorical_series_to_string(left), categorical_series_to_string(right))
+    } else {
+        (left.clone(), right.clone())
+    };
+
+    // Sort the series 
+    let (left, right) = if !check_order {
+        (sort_series(&left)?, sort_series(&right)?)
+    } else {
+        (left.clone(), right.clone())
+    };
+
+    // Determine unequal elements while also considering missing values
+    // There is no direct `ne_missing()` function in Rust like there is in Python for Series
+    let (left_null, right_null) = (left.is_null(), right.is_null());
+    let both_null = left_null.bitand(right_null);
+
+    let values_equal = left.equal(&right)?;
+    let combined_equal = values_equal.bitor(both_null);
+    let unequal = combined_equal.not();
+
+    // Checked nested dypes in separate function
+    if comparing_nested_floats(left.dtype(), right.dtype()) {
+        let filtered_left = left.filter(&unequal)?;
+        let filtered_right = right.filter(&unequal)?;
+
+        match assert_series_nested_values_equal(
+            &filtered_left, 
+            &filtered_right, 
+            check_exact, 
+            rtol, 
+            atol, 
+            categorical_as_str,
+        ) {
+            Ok(_) => {
+                return Ok(());
+            },
+            Err(_) => {
+                return Err(polars_err!(
+                    assertion_error = "Series",
+                    "nested value mismatch",
+                    left, 
+                    right
+                ));
+            }
+        }
+    }
+
+    // If no differences are found during exact checking, we are finished
+    if !unequal.any() {
+        return Ok(())
+    }
+
+    // Only do inexact checking for float types
+    if check_exact || !left.dtype().is_float() || !right.dtype().is_float() {
+        return Err(polars_err!(
+            assertion_error = "Series",
+            "exact value mismatch",
+            left,
+            right
+        ))
+    }
+
+    assert_series_null_values_match(&left, &right)?;
+    assert_series_nan_values_match(&left, &right)?;
+    assert_series_values_within_tolerance(&left, &right, &unequal, rtol, atol)?;
+
+    Ok(())
+}
+
 /// Checks whether the nested values in two Series are equal.
 pub fn assert_series_nested_values_equal(
     left: &Series,
@@ -197,5 +271,65 @@ pub fn assert_series_nested_values_equal(
     atol: f64,
     categorical_as_str: bool,
 ) -> PolarsResult<()> {
-    todo!()
+    
+    // Compare nested lists element-wise
+    if comparing_lists(left.dtype(), right.dtype()) {
+        let zipped = left.iter().zip(right.iter());
+
+        for (s1, s2) in zipped {
+            if s1.is_null() || s2.is_null() {
+                return Err(polars_err!(
+                    assertion_error = "Series",
+                    "values do not match",
+                    s1,
+                    s2
+                ));
+            } else {
+                // Convert `AnyValue` to Series
+                let s1_series = Series::new("s1".into(), vec![s1.clone()]);
+                let s2_series = Series::new("s2".into(), vec![s2.clone()]);
+
+                // Check the result and only return on error
+                match assert_series_values_equal(
+                    &s1_series,
+                    &s2_series,
+                    true,
+                    check_exact,
+                    rtol,
+                    atol,
+                    categorical_as_str,
+                ) {
+                    Ok(_) => continue,
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+    } else {
+        // Unnest Structs as Series for comparison
+        let ls = left.struct_()?.clone().unnest();
+        let rs = right.struct_()?.clone().unnest();
+
+        // Get the columns from each DataFrame
+        let ls_cols = ls.get_columns();
+        let rs_cols = rs.get_columns();
+
+        // Run `for` loop over paired-columns while converting them into Series
+        for (s1, s2) in ls_cols.iter().zip(rs_cols.iter()) {
+            // Check the result and only return on error
+            match assert_series_values_equal(
+                &s1.as_series().unwrap(),
+                &s2.as_series().unwrap(),
+                true,
+                check_exact,
+                rtol,
+                atol,
+                categorical_as_str
+            ) {
+                Ok(_) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    Ok(())
 }
