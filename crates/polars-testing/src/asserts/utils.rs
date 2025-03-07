@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::ops::{Not, BitAnd, BitOr};
+use std::ops::{BitAnd, BitOr, Not};
 
 use polars_core::datatypes::unpack_dtypes;
 use polars_core::prelude::*;
@@ -22,7 +22,7 @@ pub fn categorical_dtype_to_string_dtype(dtype: &DataType) -> DataType {
                 .map(|field| {
                     Field::new(
                         field.name().clone(),
-                        categorical_dtype_to_string_dtype(&field.dtype()),
+                        categorical_dtype_to_string_dtype(field.dtype()),
                     )
                 })
                 .collect::<Vec<Field>>();
@@ -57,9 +57,9 @@ pub fn comparing_structs(left: &DataType, right: &DataType) -> bool {
     left.is_struct() && right.is_struct()
 }
 
-// **Change**: When translating this code to Rust, there originally was 
+// **Change**: When translating this code to Rust, there originally was
 // no `unpack_dtypes()` functionality in the code base, so I created it in
-// `polars-core/src/datatypes/dtype.rs` and Gijs merged the PR (#21574)
+// `polars-core/src/datatypes/dtype.rs` and Gijs merged the PR (#21574).
 pub fn comparing_nested_floats(left: &DataType, right: &DataType) -> bool {
     if !comparing_lists(left, right) && !comparing_structs(left, right) {
         return false;
@@ -74,6 +74,9 @@ pub fn comparing_nested_floats(left: &DataType, right: &DataType) -> bool {
     left_has_floats && right_has_floats
 }
 
+// **Change:** The Python function originally took both `left` and `right`
+// as input parameters and returned both, but I just made it take a 
+// single Series and used tuple destructuring.
 pub fn sort_series(s: &Series) -> PolarsResult<Series> {
     s.sort(SortOptions::default())
         .map_err(|_| polars_err!(op = "sort", s.dtype()))
@@ -81,9 +84,9 @@ pub fn sort_series(s: &Series) -> PolarsResult<Series> {
 
 pub fn assert_series_null_values_match(left: &Series, right: &Series) -> PolarsResult<()> {
     let null_value_mismatch = left.is_null().not_equal(&right.is_null());
-    
-    // **Change**: Rather than simply returning the Series as Lists 
-    // I thought it made more sense to return null value counts from the 
+
+    // **Change**: Rather than simply returning the Series as Lists
+    // I thought it made more sense to return null value counts from the
     // left and right Series
     if null_value_mismatch.any() {
         return Err(polars_err!(
@@ -98,7 +101,7 @@ pub fn assert_series_null_values_match(left: &Series, right: &Series) -> PolarsR
 }
 
 pub fn assert_series_nan_values_match(left: &Series, right: &Series) -> PolarsResult<()> {
-    if !comparing_floats(&left.dtype(), &right.dtype()) {
+    if !comparing_floats(left.dtype(), right.dtype()) {
         return Ok(());
     }
     let left_nan = left.is_nan()?;
@@ -106,8 +109,8 @@ pub fn assert_series_nan_values_match(left: &Series, right: &Series) -> PolarsRe
 
     let nan_value_mismatch = left_nan.not_equal(&right_nan);
 
-    // **Change**: Rather than simply returning the Series as Lists 
-    // I thought it made more sense to return NaN value counts from the 
+    // **Change**: Rather than simply returning the Series as Lists
+    // I thought it made more sense to return NaN value counts from the
     // left and right Series
     let left_nan_count = left_nan.sum().unwrap_or(0);
     let right_nan_count = right_nan.sum().unwrap_or(0);
@@ -143,7 +146,7 @@ pub fn assert_series_values_within_tolerance(
     let right_abs = abs(&right_unequal)?;
 
     // **Change**: The scalar values needed to be converted into Series
-    // so that arithmetic operations between the Series could happen. 
+    // so that arithmetic operations between the Series could happen.
     // I looked through the Rust API documentation and didn't see
     // any method for multiplying a Series by a scalar.
     let rtol_series = Series::new("rtol".into(), &[rtol]);
@@ -159,21 +162,21 @@ pub fn assert_series_values_within_tolerance(
     let within_tolerance = (diff_within_tol & finite_mask) | equal_values;
 
     if within_tolerance.all() {
-        return Ok(());
+        Ok(())
     } else {
-        // **Change**: Rather than simply returning the Series as Lists 
-        // I thought it made more sense to return the problematic values in both 
+        // **Change**: Rather than simply returning the Series as Lists
+        // I thought it made more sense to return the problematic values in both
         // left and right Series
         let exceeded_indices = within_tolerance.not();
         let problematic_left = left_unequal.filter(&exceeded_indices)?;
         let problematic_right = right_unequal.filter(&exceeded_indices)?;
 
-        return Err(polars_err!(
+        Err(polars_err!(
             assertion_error = "Series",
             "values not within tolerance",
             problematic_left,
             problematic_right
-        ));
+        ))
     }
 }
 
@@ -186,9 +189,11 @@ pub fn assert_series_values_equal(
     atol: f64,
     categorical_as_str: bool,
 ) -> PolarsResult<()> {
-
     let (left, right) = if categorical_as_str {
-        (categorical_series_to_string(left), categorical_series_to_string(right))
+        (
+            categorical_series_to_string(left),
+            categorical_series_to_string(right),
+        )
     } else {
         (left.clone(), right.clone())
     };
@@ -200,8 +205,8 @@ pub fn assert_series_values_equal(
     };
 
     // **Change**: After looking through the Rust API documentation, it seems
-    // there is no direct `ne_missing()` function in Rust like there is in 
-    // Python for Series, so I had to break it down into smaller parts 
+    // there is no direct `ne_missing()` function in Rust like there is in
+    // Python for Series, so I had to break it down into smaller parts
     // which can be refactored later, if that functionality is eventually made
     let (left_null, right_null) = (left.is_null(), right.is_null());
     let both_null = left_null.bitand(right_null);
@@ -215,11 +220,11 @@ pub fn assert_series_values_equal(
         let filtered_right = right.filter(&unequal)?;
 
         match assert_series_nested_values_equal(
-            &filtered_left, 
-            &filtered_right, 
-            check_exact, 
-            rtol, 
-            atol, 
+            &filtered_left,
+            &filtered_right,
+            check_exact,
+            rtol,
+            atol,
             categorical_as_str,
         ) {
             Ok(_) => {
@@ -229,15 +234,15 @@ pub fn assert_series_values_equal(
                 return Err(polars_err!(
                     assertion_error = "Series",
                     "nested value mismatch",
-                    left, 
+                    left,
                     right
                 ));
-            }
+            },
         }
     }
 
     if !unequal.any() {
-        return Ok(())
+        return Ok(());
     }
 
     if check_exact || !left.dtype().is_float() || !right.dtype().is_float() {
@@ -246,7 +251,7 @@ pub fn assert_series_values_equal(
             "exact value mismatch",
             left,
             right
-        ))
+        ));
     }
 
     assert_series_null_values_match(&left, &right)?;
@@ -264,7 +269,6 @@ pub fn assert_series_nested_values_equal(
     atol: f64,
     categorical_as_str: bool,
 ) -> PolarsResult<()> {
-    
     if comparing_lists(left.dtype(), right.dtype()) {
         let zipped = left.iter().zip(right.iter());
 
@@ -277,7 +281,6 @@ pub fn assert_series_nested_values_equal(
                     s2
                 ));
             } else {
-                
                 // **Change**: This had to convert `AnyValue` to Series because
                 // the input type for `assert_series_values_equal()` are Series
                 // objects and not `AnyValue`, which would cause an error.
@@ -301,7 +304,7 @@ pub fn assert_series_nested_values_equal(
     } else {
         // **Change**: This section had to be modified because
         // using `unnest()` on a Struct type in Rust creates a DataFrame
-        // not a Series. Thus, I had to find a workaround so that the 
+        // not a Series. Thus, I had to find a workaround so that the
         // `assert_series_values_equal()` function would have the proper
         // input of Series.
         let ls = left.struct_()?.clone().unnest();
@@ -310,16 +313,15 @@ pub fn assert_series_nested_values_equal(
         let ls_cols = ls.get_columns();
         let rs_cols = rs.get_columns();
 
-
         for (s1, s2) in ls_cols.iter().zip(rs_cols.iter()) {
             match assert_series_values_equal(
-                &s1.as_series().unwrap(),
-                &s2.as_series().unwrap(),
+                s1.as_series().unwrap(),
+                s2.as_series().unwrap(),
                 true,
                 check_exact,
                 rtol,
                 atol,
-                categorical_as_str
+                categorical_as_str,
             ) {
                 Ok(_) => continue,
                 Err(e) => return Err(e),
@@ -330,6 +332,11 @@ pub fn assert_series_nested_values_equal(
     Ok(())
 }
 
+// **Note**: This is just a placeholder for now.
+// Clippy warns that this function has too many arguments (9/7).
+// This can be refactored to use a struct to hold configuration options,
+// but just want to be sure this is what Polars prefers.
+#[allow(clippy::too_many_arguments)]
 pub fn assert_series_equal(
     left: &Series,
     right: &Series,
@@ -341,12 +348,16 @@ pub fn assert_series_equal(
     atol: f64,
     categorical_as_str: bool,
 ) -> PolarsResult<()> {
+    // **Change**: The Python code has an `_assert_correct_input_type()`
+    // function to make sure that both inputs are Series. However,
+    // this was not implemented in Rust due to Rust's strict
+    // static type-checking system.
 
     if left.len() != right.len() {
         return Err(polars_err!(
             assertion_error = "Series",
             "length mismatch",
-            left.len(), 
+            left.len(),
             right.len()
         ));
     }
@@ -355,7 +366,7 @@ pub fn assert_series_equal(
         return Err(polars_err!(
             assertion_error = "Series",
             "name mismatch",
-            left.name(), 
+            left.name(),
             right.name()
         ));
     }
@@ -364,18 +375,18 @@ pub fn assert_series_equal(
         return Err(polars_err!(
             assertion_error = "Series",
             "data type mismatch",
-            left.dtype(), 
+            left.dtype(),
             right.dtype()
         ));
     }
 
     assert_series_values_equal(
-        &left,
-        &right,
+        left,
+        right,
         check_order,
         check_exact,
         rtol,
         atol,
-        categorical_as_str
+        categorical_as_str,
     )
 }
