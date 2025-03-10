@@ -1,9 +1,77 @@
-#![allow(dead_code)]
 use std::ops::{BitAnd, BitOr, Not};
 
 use polars_core::datatypes::unpack_dtypes;
 use polars_core::prelude::*;
 use polars_ops::series::abs;
+
+// **Note:** Created a struct with a default implementation
+// for the user to create default arguments. This seems to be the
+// idiomatic approach and resolves Clippy's "too many parameters (9/7)"
+// suggestion.
+pub struct SeriesEqualOptions {
+    pub check_dtypes: bool,
+    pub check_names: bool,
+    pub check_order: bool,
+    pub check_exact: bool,
+    pub rtol: f64,
+    pub atol: f64,
+    pub categorical_as_str: bool,
+}
+
+impl Default for SeriesEqualOptions {
+    fn default() -> Self {
+        Self {
+            check_dtypes: true,
+            check_names: true,
+            check_order: true,
+            check_exact: true,
+            rtol: 1e-5,
+            atol: 1e-8,
+            categorical_as_str: false,
+        }
+    }
+}
+
+impl SeriesEqualOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_check_dtypes(mut self, value: bool) -> Self {
+        self.check_dtypes = value;
+        self
+    }
+
+    pub fn with_check_names(mut self, value: bool) -> Self {
+        self.check_names = value;
+        self
+    }
+
+    pub fn with_check_order(mut self, value: bool) -> Self {
+        self.check_order = value;
+        self
+    }
+
+    pub fn with_check_exact(mut self, value: bool) -> Self {
+        self.check_exact = value;
+        self
+    }
+
+    pub fn with_rtol(mut self, value: f64) -> Self {
+        self.rtol = value;
+        self
+    }
+
+    pub fn with_atol(mut self, value: f64) -> Self {
+        self.atol = value;
+        self
+    }
+
+    pub fn with_categorical_as_str(mut self, value: bool) -> Self {
+        self.categorical_as_str = value;
+        self
+    }
+}
 
 pub fn categorical_dtype_to_string_dtype(dtype: &DataType) -> DataType {
     match dtype {
@@ -75,7 +143,7 @@ pub fn comparing_nested_floats(left: &DataType, right: &DataType) -> bool {
 }
 
 // **Change:** The Python function originally took both `left` and `right`
-// as input parameters and returned both, but I just made it take a 
+// as input parameters and returned both, but I just made it take a
 // single Series and used tuple destructuring.
 pub fn sort_series(s: &Series) -> PolarsResult<Series> {
     s.sort(SortOptions::default())
@@ -332,21 +400,10 @@ pub fn assert_series_nested_values_equal(
     Ok(())
 }
 
-// **Note**: This is just a placeholder for now.
-// Clippy warns that this function has too many arguments (9/7).
-// This can be refactored to use a struct to hold configuration options,
-// but just want to be sure this is what Polars prefers.
-#[allow(clippy::too_many_arguments)]
 pub fn assert_series_equal(
     left: &Series,
     right: &Series,
-    check_dtypes: bool,
-    check_names: bool,
-    check_order: bool,
-    check_exact: bool,
-    rtol: f64,
-    atol: f64,
-    categorical_as_str: bool,
+    options: SeriesEqualOptions,
 ) -> PolarsResult<()> {
     // **Change**: The Python code has an `_assert_correct_input_type()`
     // function to make sure that both inputs are Series. However,
@@ -362,7 +419,7 @@ pub fn assert_series_equal(
         ));
     }
 
-    if check_names && left.name() != right.name() {
+    if options.check_names && left.name() != right.name() {
         return Err(polars_err!(
             assertion_error = "Series",
             "name mismatch",
@@ -371,7 +428,7 @@ pub fn assert_series_equal(
         ));
     }
 
-    if check_dtypes && left.dtype() != right.dtype() {
+    if options.check_dtypes && left.dtype() != right.dtype() {
         return Err(polars_err!(
             assertion_error = "Series",
             "data type mismatch",
@@ -383,10 +440,10 @@ pub fn assert_series_equal(
     assert_series_values_equal(
         left,
         right,
-        check_order,
-        check_exact,
-        rtol,
-        atol,
-        categorical_as_str,
+        options.check_order,
+        options.check_exact,
+        options.rtol,
+        options.atol,
+        options.categorical_as_str,
     )
 }
