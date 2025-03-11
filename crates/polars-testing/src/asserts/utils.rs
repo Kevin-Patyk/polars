@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, Not};
+use std::ops::{BitAnd, BitOr, Not, BitXor};
 
 use polars_core::datatypes::unpack_dtypes;
 use polars_core::prelude::*;
@@ -275,13 +275,16 @@ pub fn assert_series_values_equal(
     // **Change**: After looking through the Rust API documentation, it seems
     // there is no direct `ne_missing()` function in Rust like there is in
     // Python for Series, so I had to break it down into smaller parts
-    // which can be refactored later, if that functionality is eventually made
-    let (left_null, right_null) = (left.is_null(), right.is_null());
-    let both_null = left_null.bitand(right_null);
+    // which can be refactored later, if that functionality is eventually made.
+    let left_null = left.is_null();
+    let right_null = right.is_null();
+    let null_mismatch = left_null.clone().bitxor(right_null.clone());
 
     let values_equal = left.equal(&right)?;
+    let both_null = left_null.bitand(right_null);
+    
     let combined_equal = values_equal.bitor(both_null);
-    let unequal = combined_equal.not();
+    let unequal = combined_equal.not().bitor(null_mismatch);
 
     if comparing_nested_floats(left.dtype(), right.dtype()) {
         let filtered_left = left.filter(&unequal)?;
@@ -329,6 +332,20 @@ pub fn assert_series_values_equal(
     Ok(())
 }
 
+// **Note:** This ensures that complex nested structures keep
+// exploding until the final layer is ultimately reached. This is the 
+// current solution to avoiding infinite recursion of wrapping an `AnyValue`
+// into a Series and inputting it into `assert_series_equal()`.
+fn fully_explode(s: &Series) -> PolarsResult<Series> {
+    let mut result = s.clone();
+
+    while matches!(result.dtype(), DataType::List(_) | DataType::Array(_, _)) {
+        result = result.explode()?;
+    }
+
+    Ok(result)
+}
+
 pub fn assert_series_nested_values_equal(
     left: &Series,
     right: &Series,
@@ -344,7 +361,7 @@ pub fn assert_series_nested_values_equal(
             if s1.is_null() || s2.is_null() {
                 return Err(polars_err!(
                     assertion_error = "Series",
-                    "values do not match",
+                    "nested value mismatch",
                     s1,
                     s2
                 ));
@@ -352,12 +369,15 @@ pub fn assert_series_nested_values_equal(
                 // **Change**: This had to convert `AnyValue` to Series because
                 // the input type for `assert_series_values_equal()` are Series
                 // objects and not `AnyValue`, which would cause an error.
-                let s1_series = Series::new("s1".into(), vec![s1.clone()]);
-                let s2_series = Series::new("s2".into(), vec![s2.clone()]);
+                let s1_series = Series::new("".into(), &[s1.clone()]);
+                let s2_series = Series::new("".into(), &[s2.clone()]);
 
+                // **Change**: If the `AnyValue` wrapped in a Series gets input into 
+                // this function, infinite recursion happens. `fully_explode()` seems to solve the issue,
+                // but it might not be the most elegant. 
                 match assert_series_values_equal(
-                    &s1_series,
-                    &s2_series,
+                    &fully_explode(&s1_series)?,
+                    &fully_explode(&s2_series)?,
                     true,
                     check_exact,
                     rtol,
