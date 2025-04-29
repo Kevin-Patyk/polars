@@ -15,6 +15,7 @@ macro_rules! assert_dataframe_equal {
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use polars_core::prelude::*;
 
     // Testing default struct implementation

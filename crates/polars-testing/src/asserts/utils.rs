@@ -654,13 +654,13 @@ pub fn assert_dataframe_schema_equal(
     // into a HashMap manually, so it the code can function like the Python code
     // that uses dictionaries of schema.
     let left_schema = left.schema();
-    let left_schema_map = left_schema
+    let left_schema_map: std::collections::HashMap<String, DataType> = left_schema
         .iter()
         .map(|(name, dtype)| (name.to_string(), dtype.clone()))
         .collect();
 
     let right_schema = right.schema();
-    let right_schema_map = right_schema
+    let right_schema_map: std::collections::HashMap<String, DataType> = right_schema
         .iter()
         .map(|(name, dtype)| (name.to_string(), dtype.clone()))
         .collect();
@@ -679,7 +679,7 @@ pub fn assert_dataframe_schema_equal(
     }
 
     if left_cols != right_cols {
-        let left_not_right: Vec<&&PlSmallStr> = left_cols
+        let left_not_right: Vec<_> = left_cols
             .iter()
             .filter(|col| !right_cols.contains(*col))
             .collect();
@@ -692,7 +692,7 @@ pub fn assert_dataframe_schema_equal(
                 format!("{:?}", right_cols)
             ));
         } else {
-            let right_not_left: Vec<&&PlSmallStr> = right_cols
+            let right_not_left: Vec<_> = right_cols
                 .iter()
                 .filter(|col| !left_cols.contains(*col))
                 .collect();
@@ -706,36 +706,32 @@ pub fn assert_dataframe_schema_equal(
         }
     }
 
-    if check_column_order {
-        if left_cols != right_cols {
-            return Err(polars_err!(
-                assertion_error = "DataFrame",
-                "columns are not in the same order",
-                format!("{:?}", left_cols),
-                format!("{:?}", right_cols)
-            ));
-        }
+    if check_column_order && left_cols != right_cols {
+        return Err(polars_err!(
+            assertion_error = "DataFrame",
+            "columns are not in the same order",
+            format!("{:?}", left_cols),
+            format!("{:?}", right_cols)
+        ));
     }
 
-    if check_dtypes {
-        if check_column_order || left_schema_map != right_schema_map {
-            // **Change:** In the Python code, there is a debugging statement:
+    if check_dtypes && (check_column_order || left_schema_map != right_schema_map) {
+        // **Change:** In the Python code, there is a debugging statement:
 
-            // `if check_column_order or left_schema_dict != right_schema_dict:
-            // print(left_schema_dict, right_schema_dict) <------ !!Here!!
-            // detail = "dtypes do not match"
-            // raise_assertion_error(objects, detail, left_schema_dict, right_schema_dict)`
+        // `if check_column_order or left_schema_dict != right_schema_dict:
+        // print(left_schema_dict, right_schema_dict) <------ !!Here!!
+        // detail = "dtypes do not match"
+        // raise_assertion_error(objects, detail, left_schema_dict, right_schema_dict)`
 
-            // But this seems redundant because it just raises an assertion error with that information
-            // immediately after. I did not put it in the Rust code and maybe it needs to be removed in the Python
-            // code.
-            return Err(polars_err!(
-                assertion_error = "DataFrame",
-                "data types do not match",
-                format!("{:?}", left_schema_map),
-                format!("{:?}", right_schema_map)
-            ));
-        }
+        // But this seems redundant because it just raises an assertion error with that information
+        // immediately after. I did not put it in the Rust code and maybe it needs to be removed in the Python
+        // code.
+        return Err(polars_err!(
+            assertion_error = "DataFrame",
+            "data types do not match",
+            format!("{:?}", left_schema_map),
+            format!("{:?}", right_schema_map)
+        ));
     }
 
     Ok(())
@@ -751,12 +747,12 @@ pub fn assert_dataframe_equal(
     // are DataFrames or LazyFrames. That part has been ommitted here
     // since we are assuming the inputs are DataFrames.
 
-    assert_frame_schema_equal(
+    assert_dataframe_schema_equal(
         left,
         right,
         options.check_dtypes,
         options.check_column_order,
-    );
+    )?;
 
     if left.height() != right.height() {
         return Err(polars_err!(
@@ -767,15 +763,15 @@ pub fn assert_dataframe_equal(
         ));
     }
 
-    let left_cols = left.get_column_names();
+    let left_cols = left.get_column_names_owned();
 
     // **Change:** The Python code has a `_sort_dataframes()` custom function
     // but these seemed unnecessary. Same as with the Series code,
     // I did not make a separate function and just implemented it here.
     let (left, right) = if !options.check_row_order {
         (
-            left.sort(left_cols, SortMultipleOptions::default())?,
-            right.sort(left_cols, SortMultipleOptions::default())?,
+            left.sort(left_cols.clone(), SortMultipleOptions::default())?,
+            right.sort(left_cols.clone(), SortMultipleOptions::default())?,
         )
     } else {
         // **Note:** This is a bit concerning for really large dataframes, since
@@ -785,13 +781,22 @@ pub fn assert_dataframe_equal(
         (left.clone(), right.clone())
     };
 
-    for c in left_cols.iter() {
-        let s_left = left.column(c)?;
-        let s_right = right.column(c)?;
+    for col in left_cols.iter() {
+        let s_left = left.column(col)?;
+        let s_right = right.column(col)?;
+
+        // **Note: Need to convert the columns to Series to
+        // ensure that they are the correct input type for the function.
+        let s_left_series = s_left
+            .as_series()
+            .ok_or_else(|| polars_err!(ComputeError: "Expected a Series column"))?;
+        let s_right_series = s_right
+            .as_series()
+            .ok_or_else(|| polars_err!(ComputeError: "Expected a Series column"))?;
 
         match assert_series_values_equal(
-            s_left,
-            s_right,
+            s_left_series,
+            s_right_series,
             true,
             options.check_exact,
             options.rtol,
@@ -802,9 +807,9 @@ pub fn assert_dataframe_equal(
             Err(err) => {
                 return Err(polars_err!(
                     assertion_error = "DataFrame",
-                    format!("value mismatch for column {:?}", c),
-                    format!("{:?}", s_left.to_vec()?),
-                    format!("{:?}", s_right.to_vec()?)
+                    format!("value mismatch for column {:?}:, {}", col, err),
+                    format!("{:?}", s_left_series),
+                    format!("{:?}", s_right_series)
                 ));
             },
         }
