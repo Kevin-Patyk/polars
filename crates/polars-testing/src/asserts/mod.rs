@@ -1,4 +1,7 @@
+pub mod frame;
 pub mod series;
 mod utils;
 
-pub use utils::{SeriesEqualOptions, DataFrameEqualOptions, assert_series_equal, assert_dataframe_equal};
+pub use utils::{
+    DataFrameEqualOptions, SeriesEqualOptions, assert_dataframe_equal, assert_series_equal,
+};

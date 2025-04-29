@@ -573,7 +573,7 @@ impl Default for DataFrameEqualOptions {
             check_row_order: true,
             check_column_order: true,
             check_dtypes: true,
-            check_exact: true,
+            check_exact: false,
             rtol: 1e-5,
             atol: 1e-8,
             categorical_as_str: false,
@@ -628,41 +628,42 @@ impl DataFrameEqualOptions {
 // for the `assert_frame_equal()` function is `DataFrame | LazyFrame`,
 // but this is not possible to do in Rust due to the strong static typing
 // system. For now, will build the function around DataFrames, but other approaches
-// such as generic trait bounds or enum types can be used if we want 
+// such as generic trait bounds or enum types can be used if we want
 // the macro to take either a DataFrame or LazyFrame. Need some guidance on this
 // from Polars team. As a note, it seems like the Python function performs
 // the comparisons on DataFrames because, if the input frame is a LazyFrame,
 // it calls `.collect()` before doing any comparisons. Additionally, LazyFrames
-// can simply just be made into DataFrames with `.collect()`. That is why I chose to 
+// can simply just be made into DataFrames with `.collect()`. That is why I chose to
 // make it rely on a DataFrame rather than LazyFrame.
 
-// **Change**: `_assert_frame_schema_equal` in the Python code 
-// has the input as `left: DataFrame | LazyFrame,` and 
+// **Change**: `_assert_frame_schema_equal` in the Python code
+// has the input as `left: DataFrame | LazyFrame,` and
 // `right: DataFrame | LazyFrame,`. As mentioned in the logic of
 // the previous comment, will only stick to using DataFrames unless
-// otherwise specified later. 
+// otherwise specified later.
 pub fn assert_dataframe_schema_equal(
     left: &DataFrame,
     right: &DataFrame,
     check_dtypes: bool,
     check_column_order: bool,
 ) -> PolarsResult<()> {
-
-    // **Change:** Original Python code has 
+    // **Change:** Original Python code has
     // `left_schema, right_schema = left.collect_schema(), right.collect_schema()`.
     // But this method only exists on LazyFrames in the Rust API,
-    // thus that is omitted here. In this code, I convert `&Arc<Schema<DataType>>` 
+    // thus that is omitted here. In this code, I convert `&Arc<Schema<DataType>>`
     // into a HashMap manually, so it the code can function like the Python code
     // that uses dictionaries of schema.
     let left_schema = left.schema();
-    let left_schema_map = left_schema.iter()
-    .map(|(name, dtype)| (name.to_string(), dtype.clone()))
-    .collect();
+    let left_schema_map = left_schema
+        .iter()
+        .map(|(name, dtype)| (name.to_string(), dtype.clone()))
+        .collect();
 
     let right_schema = right.schema();
-    let right_schema_map = right_schema.iter()
-    .map(|(name, dtype)| (name.to_string(), dtype.clone()))
-    .collect();
+    let right_schema_map = right_schema
+        .iter()
+        .map(|(name, dtype)| (name.to_string(), dtype.clone()))
+        .collect();
 
     // **Note:** Creating this outside to shorten the code so I don't have to remake these variables
     // several times. Also, this can be done with `get_column_names()`, but I wanted to follow the style
@@ -670,16 +671,16 @@ pub fn assert_dataframe_schema_equal(
     let left_cols = left_schema_map.keys().collect::<Vec<_>>();
     let right_cols = right_schema_map.keys().collect::<Vec<_>>();
 
-    // **Change:** This is a fast path for equal frames. In this Rust code I use 
+    // **Change:** This is a fast path for equal frames. In this Rust code I use
     // `.schema_equal()` method, but in the Python code they just use a direct comparison:
     // `if left_schema == right_schema:`.
-    if left.schema_equal(right).is_ok(){
+    if left.schema_equal(right).is_ok() {
         return Ok(());
     }
 
     if left_cols != right_cols {
-
-        let left_not_right: Vec<&&PlSmallStr> = left_cols.iter()
+        let left_not_right: Vec<&&PlSmallStr> = left_cols
+            .iter()
             .filter(|col| !right_cols.contains(*col))
             .collect();
 
@@ -691,10 +692,10 @@ pub fn assert_dataframe_schema_equal(
                 format!("{:?}", right_cols)
             ));
         } else {
-            let right_not_left: Vec<&&PlSmallStr> = right_cols.iter()
+            let right_not_left: Vec<&&PlSmallStr> = right_cols
+                .iter()
                 .filter(|col| !left_cols.contains(*col))
                 .collect();
-            
 
             return Err(polars_err!(
                 assertion_error = "DataFrame",
@@ -712,7 +713,7 @@ pub fn assert_dataframe_schema_equal(
                 "columns are not in the same order",
                 format!("{:?}", left_cols),
                 format!("{:?}", right_cols)
-            ))
+            ));
         }
     }
 
@@ -733,7 +734,7 @@ pub fn assert_dataframe_schema_equal(
                 "data types do not match",
                 format!("{:?}", left_schema_map),
                 format!("{:?}", right_schema_map)
-            ))
+            ));
         }
     }
 
@@ -744,16 +745,16 @@ pub fn assert_dataframe_equal(
     left: &DataFrame,
     right: &DataFrame,
     options: DataFrameEqualOptions,
-)  -> PolarsResult<()> {
-
-    // **Change:** In the Python code, there are lines of code that 
+) -> PolarsResult<()> {
+    // **Change:** In the Python code, there are lines of code that
     // deal with determining if the input frames (`left`, `right`)
     // are DataFrames or LazyFrames. That part has been ommitted here
     // since we are assuming the inputs are DataFrames.
 
-    assert_frame_schema_equal(left, 
-        right, 
-        options.check_dtypes, 
+    assert_frame_schema_equal(
+        left,
+        right,
+        options.check_dtypes,
         options.check_column_order,
     );
 
@@ -763,16 +764,16 @@ pub fn assert_dataframe_equal(
             "have different number of rows",
             left.height(),
             right.height()
-        ))
+        ));
     }
 
     let left_cols = left.get_column_names();
 
     // **Change:** The Python code has a `_sort_dataframes()` custom function
-    // but these seemed unnecessary. Same as with the Series code, 
+    // but these seemed unnecessary. Same as with the Series code,
     // I did not make a separate function and just implemented it here.
     let (left, right) = if !options.check_row_order {
-        (   
+        (
             left.sort(left_cols, SortMultipleOptions::default())?,
             right.sort(left_cols, SortMultipleOptions::default())?,
         )
@@ -780,7 +781,7 @@ pub fn assert_dataframe_equal(
         // **Note:** This is a bit concerning for really large dataframes, since
         // cloning can be computationally expensive. Another option is to use
         // `sort_in_place()` method, but that would require mutable references to the
-        // input DataFrames. 
+        // input DataFrames.
         (left.clone(), right.clone())
     };
 
@@ -789,23 +790,23 @@ pub fn assert_dataframe_equal(
         let s_right = right.column(c)?;
 
         match assert_series_values_equal(
-            s_left, 
-            s_right, 
-            true, 
-            options.check_exact, 
-            options.rtol, 
-            options.atol, 
+            s_left,
+            s_right,
+            true,
+            options.check_exact,
+            options.rtol,
+            options.atol,
             options.categorical_as_str,
         ) {
             Ok(_) => {},
-            returnErr(err) => {
+            Err(err) => {
                 return Err(polars_err!(
                     assertion_error = "DataFrame",
                     format!("value mismatch for column {:?}", c),
                     format!("{:?}", s_left.to_vec()?),
                     format!("{:?}", s_right.to_vec()?)
-                ))
-            }
+                ));
+            },
         }
     }
 
