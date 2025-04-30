@@ -20,7 +20,7 @@ mod tests {
 
     // Testing default struct implementation
     #[test]
-    fn test_series_equal_options() {
+    fn test_dataframe_equal_options() {
         let options = crate::asserts::DataFrameEqualOptions::default();
 
         assert!(options.check_row_order);
