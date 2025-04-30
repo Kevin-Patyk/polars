@@ -654,13 +654,13 @@ pub fn assert_dataframe_schema_equal(
     // into a HashMap manually, so it the code can function like the Python code
     // that uses dictionaries of schema.
     let left_schema = left.schema();
-    let left_schema_map: std::collections::HashMap<String, DataType> = left_schema
+    let left_schema_map: PlHashMap<String, DataType> = left_schema
         .iter()
         .map(|(name, dtype)| (name.to_string(), dtype.clone()))
         .collect();
 
     let right_schema = right.schema();
-    let right_schema_map: std::collections::HashMap<String, DataType> = right_schema
+    let right_schema_map: PlHashMap<String, DataType> = right_schema
         .iter()
         .map(|(name, dtype)| (name.to_string(), dtype.clone()))
         .collect();
@@ -679,6 +679,9 @@ pub fn assert_dataframe_schema_equal(
     }
 
     if left_cols != right_cols {
+        // **Note:** I am less familiar with software engineering theoreticals,
+        // but could time complexity be reduced here by converting `right_cols`
+        // to a `PlHashSet` rather than using a `Vec`?
         let left_not_right: Vec<_> = left_cols
             .iter()
             .filter(|col| !right_cols.contains(*col))
@@ -692,6 +695,9 @@ pub fn assert_dataframe_schema_equal(
                 format!("{:?}", right_cols)
             ));
         } else {
+            // **Note:** I am less familiar with software engineering theoreticals,
+            // but could time complexity be reduced here by converting `left_cols`
+            // to a `PlHashSet` rather than using a `Vec`?
             let right_not_left: Vec<_> = right_cols
                 .iter()
                 .filter(|col| !left_cols.contains(*col))
@@ -787,12 +793,12 @@ pub fn assert_dataframe_equal(
 
         // **Note: Need to convert the columns to Series to
         // ensure that they are the correct input type for the function.
-        let s_left_series = s_left
-            .as_series()
-            .ok_or_else(|| polars_err!(ComputeError: "Expected a Series column"))?;
-        let s_right_series = s_right
-            .as_series()
-            .ok_or_else(|| polars_err!(ComputeError: "Expected a Series column"))?;
+        let s_left_series = s_left.as_series().ok_or_else(
+            || polars_err!(ComputeError: "Column returned None when converting to Series"),
+        )?;
+        let s_right_series = s_right.as_series().ok_or_else(
+            || polars_err!(ComputeError: "Column returned None when converting to Series"),
+        )?;
 
         match assert_series_values_equal(
             s_left_series,
