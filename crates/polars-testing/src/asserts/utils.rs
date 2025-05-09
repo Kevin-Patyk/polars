@@ -690,7 +690,10 @@ pub fn assert_dataframe_schema_equal(
         if !left_not_right.is_empty() {
             return Err(polars_err!(
                 assertion_error = "DataFrame",
-                format!("columns {:?} in left, but not in right", left_not_right),
+                format!(
+                    "columns mismatch: {:?} in left, but not in right",
+                    left_not_right
+                ),
                 format!("{:?}", left_cols),
                 format!("{:?}", right_cols)
             ));
@@ -705,7 +708,10 @@ pub fn assert_dataframe_schema_equal(
 
             return Err(polars_err!(
                 assertion_error = "DataFrame",
-                format!("columns {:?} in right, but not in left", right_not_left),
+                format!(
+                    "columns mismatch: {:?} in right, but not in left",
+                    right_not_left
+                ),
                 format!("{:?}", left_cols),
                 format!("{:?}", right_cols)
             ));
@@ -763,7 +769,7 @@ pub fn assert_dataframe_equal(
     if left.height() != right.height() {
         return Err(polars_err!(
             assertion_error = "DataFrames",
-            "have different number of rows",
+            "height (row count) mismatch",
             left.height(),
             right.height()
         ));
