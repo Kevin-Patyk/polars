@@ -2,6 +2,7 @@ use std::ops::Not;
 
 use polars_core::datatypes::unpack_dtypes;
 use polars_core::prelude::*;
+use polars_lazy::prelude::*;
 use polars_ops::series::abs;
 
 /// Configuration options for comparing Series equality.
@@ -647,44 +648,31 @@ pub fn assert_dataframe_schema_equal(
     check_dtypes: bool,
     check_column_order: bool,
 ) -> PolarsResult<()> {
-    // **Change:** Original Python code has
-    // `left_schema, right_schema = left.collect_schema(), right.collect_schema()`.
-    // But this method only exists on LazyFrames in the Rust API,
-    // thus that is omitted here. In this code, I convert `&Arc<Schema<DataType>>`
-    // into a HashMap manually, so it the code can function like the Python code
-    // that uses dictionaries of schema.
-    let left_schema = left.schema();
-    let left_schema_map: PlHashMap<String, DataType> = left_schema
-        .iter()
-        .map(|(name, dtype)| (name.to_string(), dtype.clone()))
-        .collect();
+    // **Change:** Since I am using the input as a DataFrame, it first needs to be
+    // converted to a LazyFrame to use `.collect_schema()`. This will be used for the fast
+    // path comparison for equal frames since `.schema_equal()` can result in
+    // premature errors if there is a differing number of columns, resulting
+    // in the following logic not being implemented.
+    let left_schema = left.clone().lazy().collect_schema()?;
+    let right_schema = right.clone().lazy().collect_schema()?;
 
-    let right_schema = right.schema();
-    let right_schema_map: PlHashMap<String, DataType> = right_schema
-        .iter()
-        .map(|(name, dtype)| (name.to_string(), dtype.clone()))
-        .collect();
+    let ordered_left_cols = left.get_column_names();
+    let ordered_right_cols = right.get_column_names();
 
-    // **Note:** Creating this outside to shorten the code so I don't have to remake these variables
-    // several times. Also, this can be done with `get_column_names()`, but I wanted to follow the style
-    // of the Python code that uses dictionaries of schema and not the direct methods.
-    let left_cols = left_schema_map.keys().collect::<Vec<_>>();
-    let right_cols = right_schema_map.keys().collect::<Vec<_>>();
+    let left_set: PlHashSet<&PlSmallStr> = ordered_left_cols.iter().copied().collect();
+    let right_set: PlHashSet<&PlSmallStr> = ordered_right_cols.iter().copied().collect();
 
-    // **Change:** This is a fast path for equal frames. In this Rust code I use
-    // `.schema_equal()` method, but in the Python code they just use a direct comparison:
-    // `if left_schema == right_schema:`.
-    if left.schema_equal(right).is_ok() {
+    let left_dtypes: PlHashSet<DataType> = left.dtypes().into_iter().collect();
+    let right_dtypes: PlHashSet<DataType> = right.dtypes().into_iter().collect();
+
+    if left_schema == right_schema {
         return Ok(());
     }
 
-    if left_cols != right_cols {
-        // **Note:** I am less familiar with software engineering theoreticals,
-        // but could time complexity be reduced here by converting `right_cols`
-        // to a `PlHashSet` rather than using a `Vec`?
-        let left_not_right: Vec<_> = left_cols
+    if left_set != right_set {
+        let left_not_right: Vec<_> = left_set
             .iter()
-            .filter(|col| !right_cols.contains(*col))
+            .filter(|col| !right_set.contains(*col))
             .collect();
 
         if !left_not_right.is_empty() {
@@ -694,16 +682,13 @@ pub fn assert_dataframe_schema_equal(
                     "columns mismatch: {:?} in left, but not in right",
                     left_not_right
                 ),
-                format!("{:?}", left_cols),
-                format!("{:?}", right_cols)
+                format!("{:?}", left_set),
+                format!("{:?}", right_set)
             ));
         } else {
-            // **Note:** I am less familiar with software engineering theoreticals,
-            // but could time complexity be reduced here by converting `left_cols`
-            // to a `PlHashSet` rather than using a `Vec`?
-            let right_not_left: Vec<_> = right_cols
+            let right_not_left: Vec<_> = right_set
                 .iter()
-                .filter(|col| !left_cols.contains(*col))
+                .filter(|col| !left_set.contains(*col))
                 .collect();
 
             return Err(polars_err!(
@@ -712,37 +697,27 @@ pub fn assert_dataframe_schema_equal(
                     "columns mismatch: {:?} in right, but not in left",
                     right_not_left
                 ),
-                format!("{:?}", left_cols),
-                format!("{:?}", right_cols)
+                format!("{:?}", left_set),
+                format!("{:?}", right_set)
             ));
         }
     }
 
-    if check_column_order && left_cols != right_cols {
+    if check_column_order && ordered_left_cols != ordered_right_cols {
         return Err(polars_err!(
             assertion_error = "DataFrame",
             "columns are not in the same order",
-            format!("{:?}", left_cols),
-            format!("{:?}", right_cols)
+            format!("{:?}", ordered_left_cols),
+            format!("{:?}", ordered_right_cols)
         ));
     }
 
-    if check_dtypes && (check_column_order || left_schema_map != right_schema_map) {
-        // **Change:** In the Python code, there is a debugging statement:
-
-        // `if check_column_order or left_schema_dict != right_schema_dict:
-        // print(left_schema_dict, right_schema_dict) <------ !!Here!!
-        // detail = "dtypes do not match"
-        // raise_assertion_error(objects, detail, left_schema_dict, right_schema_dict)`
-
-        // But this seems redundant because it just raises an assertion error with that information
-        // immediately after. I did not put it in the Rust code and maybe it needs to be removed in the Python
-        // code.
+    if check_dtypes && (check_column_order || left_dtypes != right_dtypes) {
         return Err(polars_err!(
             assertion_error = "DataFrame",
             "data types do not match",
-            format!("{:?}", left_schema_map),
-            format!("{:?}", right_schema_map)
+            format!("{:?}", left_dtypes),
+            format!("{:?}", right_dtypes)
         ));
     }
 
@@ -757,7 +732,8 @@ pub fn assert_dataframe_equal(
     // **Change:** In the Python code, there are lines of code that
     // deal with determining if the input frames (`left`, `right`)
     // are DataFrames or LazyFrames. That part has been ommitted here
-    // since we are assuming the inputs are DataFrames.
+    // since we are assuming the inputs are DataFrames due to Rust's strict
+    // static typing system.
 
     assert_dataframe_schema_equal(
         left,
