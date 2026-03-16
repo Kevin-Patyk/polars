@@ -348,6 +348,33 @@ pub(super) fn optimize_functions(
                 length: length_node,
             })
         },
+        #[cfg(feature = "replace")]
+        IRFunctionExpr::Replace => {
+            let is_single_value = |node: Node| match expr_arena.get(node) {
+                AExpr::Literal(lit) => match lit {
+                    LiteralValue::Scalar(sc) => !sc.dtype().is_list(),
+                    LiteralValue::Dyn(_) => true,
+                    LiteralValue::Series(_) | LiteralValue::Range(_) => false,
+                },
+                _ => false,
+            };
+
+            if is_single_value(input[1].node()) && is_single_value(input[2].node()) {
+                let predicate = expr_arena.add(AExpr::BinaryExpr {
+                    left: input[0].node(),
+                    op: Operator::EqValidity,
+                    right: input[1].node(),
+                });
+
+                Some(AExpr::Ternary {
+                    predicate,
+                    truthy: input[2].node(),
+                    falsy: input[0].node(),
+                })
+            } else {
+                None
+            }
+        },
         _ => None,
     };
     Ok(out)
