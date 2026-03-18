@@ -449,6 +449,11 @@ pub trait SeriesTrait:
     /// Return if any the chunks in this [`ChunkedArray`] have nulls.
     fn has_nulls(&self) -> bool;
 
+    /// Check if all values in the Series are null.
+    fn is_all_null(&self) -> bool {
+        self.null_count() == self.len()
+    }
+
     /// Get unique values in the Series.
     fn unique(&self) -> PolarsResult<Series> {
         polars_bail!(opq = unique, self._dtype());

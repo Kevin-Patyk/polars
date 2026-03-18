@@ -38,7 +38,7 @@ fn is_first_distinct_boolean(ca: &BooleanChunked) -> BooleanChunked {
     let mut out = MutableBitmap::with_capacity(ca.len());
     out.extend_constant(ca.len(), false);
 
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         out.set(0, true);
     } else {
         let ca = ca.rechunk();

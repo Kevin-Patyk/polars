@@ -230,7 +230,7 @@ fn replace_by_single_strict(s: &Series, old: &Series, new: &Series) -> PolarsRes
 ///
 /// Null values are propagated to the mask.
 fn get_replacement_mask(s: &Series, old: &Series) -> PolarsResult<BooleanChunked> {
-    if old.null_count() == old.len() {
+    if old.is_all_null() {
         // Fast path for when users are using `replace(None, ...)` instead of `fill_null`.
         Ok(s.is_null())
     } else if old.len() == 1 {

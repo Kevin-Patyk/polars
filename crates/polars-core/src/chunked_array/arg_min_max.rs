@@ -43,7 +43,7 @@ where
     T: PolarsNumericType,
     for<'b> &'b [T::Native]: ArgMinMax,
 {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         None
     } else if let Ok(vals) = ca.cont_slice() {
         arg_min_numeric_slice(vals, ca.is_sorted_flag())
@@ -57,7 +57,7 @@ where
     T: PolarsNumericType,
     for<'b> &'b [T::Native]: ArgMinMax,
 {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         None
     } else if T::get_static_dtype().is_float() && !matches!(ca.is_sorted_flag(), IsSorted::Not) {
         arg_max_float_sorted(ca)
@@ -84,7 +84,7 @@ where
 
 #[cfg(feature = "dtype-categorical")]
 pub fn arg_min_cat<T: PolarsCategoricalType>(ca: &CategoricalChunked<T>) -> Option<usize> {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         return None;
     }
     arg_min_opt_iter(ca.iter_str())
@@ -92,7 +92,7 @@ pub fn arg_min_cat<T: PolarsCategoricalType>(ca: &CategoricalChunked<T>) -> Opti
 
 #[cfg(feature = "dtype-categorical")]
 pub fn arg_max_cat<T: PolarsCategoricalType>(ca: &CategoricalChunked<T>) -> Option<usize> {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         return None;
     }
     arg_max_opt_iter(ca.iter_str())
@@ -135,7 +135,7 @@ where
     T: PolarsDataType,
     for<'a> T::Physical<'a>: Ord,
 {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         return None;
     }
     match ca.is_sorted_flag() {
@@ -150,7 +150,7 @@ where
     T: PolarsDataType,
     for<'a> T::Physical<'a>: Ord,
 {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         return None;
     }
     match ca.is_sorted_flag() {

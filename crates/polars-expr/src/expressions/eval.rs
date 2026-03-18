@@ -72,7 +72,7 @@ impl EvalExpr {
             .map_or(Cow::Borrowed(ca), Cow::Owned);
 
         // Fast path: Empty or only nulls.
-        if ca.null_count() == ca.len() {
+        if ca.is_all_null() {
             let name = self.output_field.name.clone();
             return Ok(Column::full_null(name, ca.len(), self.output_field.dtype()));
         }
@@ -208,7 +208,7 @@ impl EvalExpr {
             .map_or(Cow::Borrowed(ca), Cow::Owned);
 
         // Fast path: Empty or only nulls.
-        if ca.null_count() == ca.len() {
+        if ca.is_all_null() {
             let name = self.output_field.name.clone();
             return Ok(Column::full_null(name, ca.len(), self.output_field.dtype()));
         }

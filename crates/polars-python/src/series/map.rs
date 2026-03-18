@@ -22,7 +22,7 @@ impl PySeries {
         let series = self.series.read().clone(); // Clone so we don't deadlock on re-entrance.
         let series = series.to_storage();
 
-        if skip_nulls && (series.null_count() == series.len()) {
+        if skip_nulls && (series.is_all_null()) {
             if let Some(return_dtype) = return_dtype {
                 return Ok(
                     Series::full_null(series.name().clone(), series.len(), &return_dtype.0).into(),

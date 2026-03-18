@@ -121,7 +121,7 @@ pub fn qcut(
 ) -> PolarsResult<Series> {
     polars_ensure!(!probs.iter().any(|x| x.is_nan()), ComputeError: "quantiles cannot be NaN");
 
-    if s.null_count() == s.len() {
+    if s.is_all_null() {
         // If we only have nulls we don't have any breakpoints.
         return Ok(Series::full_null(
             s.name().clone(),

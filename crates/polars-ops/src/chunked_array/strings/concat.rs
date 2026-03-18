@@ -15,7 +15,7 @@ pub fn str_join(ca: &StringChunked, delimiter: &str, ignore_nulls: bool) -> Stri
     }
 
     // Fast path for all nulls.
-    if ignore_nulls && ca.null_count() == ca.len() {
+    if ignore_nulls && ca.is_all_null() {
         return StringChunked::new(ca.name().clone(), &[""]);
     }
 

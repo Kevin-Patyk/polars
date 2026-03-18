@@ -57,7 +57,7 @@ fn is_last_distinct_boolean(ca: &BooleanChunked) -> BooleanChunked {
     let mut out = MutableBitmap::with_capacity(ca.len());
     out.extend_constant(ca.len(), false);
 
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         out.set(ca.len() - 1, true);
     }
     // TODO supports fast path.

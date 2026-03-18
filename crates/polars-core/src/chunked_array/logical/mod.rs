@@ -124,6 +124,11 @@ where
     }
 
     #[inline(always)]
+    pub fn is_all_null(&self) -> bool {
+        self.phys.is_all_null()
+    }
+
+    #[inline(always)]
     pub fn is_not_null(&self) -> BooleanChunked {
         self.phys.is_not_null()
     }

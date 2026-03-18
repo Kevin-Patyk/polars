@@ -152,7 +152,7 @@ where
     F: UnaryFnMut<T::Physical<'a>>,
     V::Array: ArrayFromIter<<F as UnaryFnMut<T::Physical<'a>>>::Ret>,
 {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         let arr = V::Array::full_null(
             ca.len(),
             V::get_static_dtype().to_arrow(CompatLevel::newest()),
@@ -179,7 +179,7 @@ where
     F: FnMut(T::Physical<'a>) -> Result<K, E>,
     V::Array: ArrayFromIter<K>,
 {
-    if ca.null_count() == ca.len() {
+    if ca.is_all_null() {
         let arr = V::Array::full_null(
             ca.len(),
             V::get_static_dtype().to_arrow(CompatLevel::newest()),
@@ -359,7 +359,7 @@ where
     F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> K,
     V::Array: ArrayFromIter<K>,
 {
-    if lhs.null_count() == lhs.len() || rhs.null_count() == rhs.len() {
+    if lhs.is_all_null() || rhs.is_all_null() {
         let len = lhs.len().min(rhs.len());
         let arr = V::Array::full_null(len, V::get_static_dtype().to_arrow(CompatLevel::newest()));
 
@@ -819,7 +819,7 @@ where
     F: for<'a> FnMut(T::Physical<'a>, U::Physical<'a>) -> K,
     V::Array: ArrayFromIter<K>,
 {
-    if lhs.null_count() == lhs.len() || rhs.null_count() == rhs.len() {
+    if lhs.is_all_null() || rhs.is_all_null() {
         let min = lhs.len().min(rhs.len());
         let max = lhs.len().max(rhs.len());
         let len = if min == 1 { max } else { min };

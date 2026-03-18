@@ -282,7 +282,7 @@ impl<T: PolarsDataType> ChunkedArray<T> {
             None
         }
         // We now know there is at least 1 non-null item in the array, and self.len() > 0
-        else if self.null_count() == self.len() {
+        else if self.is_all_null() {
             Some(0)
         } else if self.is_sorted_any() {
             let out = if unsafe { self.downcast_get_unchecked(0).is_null_unchecked(0) } {
@@ -307,7 +307,7 @@ impl<T: PolarsDataType> ChunkedArray<T> {
 
     /// Get the index of the first non null value in this [`ChunkedArray`].
     pub fn first_non_null(&self) -> Option<usize> {
-        if self.null_count() == self.len() {
+        if self.is_all_null() {
             None
         }
         // We now know there is at least 1 non-null item in the array, and self.len() > 0
@@ -336,7 +336,7 @@ impl<T: PolarsDataType> ChunkedArray<T> {
 
     /// Get the index of the last non null value in this [`ChunkedArray`].
     pub fn last_non_null(&self) -> Option<usize> {
-        if self.null_count() == self.len() {
+        if self.is_all_null() {
             None
         }
         // We now know there is at least 1 non-null item in the array, and self.len() > 0
@@ -404,6 +404,12 @@ impl<T: PolarsDataType> ChunkedArray<T> {
     /// Return if any the chunks in this [`ChunkedArray`] have nulls.
     pub fn has_nulls(&self) -> bool {
         self.null_count > 0
+    }
+
+    #[inline]
+    /// Return if all values in this [`ChunkedArray`] are null.
+    pub fn is_all_null(&self) -> bool {
+        self.null_count == self.len()
     }
 
     /// Shrink the capacity of this array to fit its length.

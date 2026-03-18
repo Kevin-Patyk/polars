@@ -306,7 +306,7 @@ fn assert_series_values_equal(
     // When `check_dtypes` is `false` and both series are entirely null,
     // consider them equal regardless of their underlying data types
     if !check_dtypes && left.dtype() != right.dtype() {
-        if left.null_count() == left.len() && right.null_count() == right.len() {
+        if left.is_all_null() && right.is_all_null() {
             return Ok(());
         }
     }

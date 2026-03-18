@@ -36,7 +36,7 @@ pub fn str_format(cs: &mut [Column], format: &str, insertions: &[usize]) -> Pola
     for c in cs.iter_mut() {
         if let Some(c_validity) = c.rechunk_validity() {
             // Column with only nulls means output is only nulls.
-            if c.null_count() == c.len() {
+            if c.is_all_null() {
                 return Ok(Column::full_null(
                     output_name,
                     output_length,

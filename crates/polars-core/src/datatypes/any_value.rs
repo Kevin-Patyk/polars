@@ -400,9 +400,9 @@ impl<'a> AnyValue<'a> {
     pub fn is_nested_null(&self) -> bool {
         match self {
             AnyValue::Null => true,
-            AnyValue::List(s) => s.null_count() == s.len(),
+            AnyValue::List(s) => s.is_all_null(),
             #[cfg(feature = "dtype-array")]
-            AnyValue::Array(s, _) => s.null_count() == s.len(),
+            AnyValue::Array(s, _) => s.is_all_null(),
             #[cfg(feature = "dtype-struct")]
             AnyValue::Struct(_, _, _) => self._iter_struct_av().all(|av| av.is_nested_null()),
             _ => false,

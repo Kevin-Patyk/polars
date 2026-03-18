@@ -95,7 +95,7 @@ where
     }
 
     fn min(&self) -> Option<T::Native> {
-        if self.null_count() == self.len() {
+        if self.is_all_null() {
             return None;
         }
 
@@ -118,7 +118,7 @@ where
     }
 
     fn max(&self) -> Option<T::Native> {
-        if self.null_count() == self.len() {
+        if self.is_all_null() {
             return None;
         }
         // There is at least one non-null value.
@@ -150,7 +150,7 @@ where
     }
 
     fn min_max(&self) -> Option<(T::Native, T::Native)> {
-        if self.null_count() == self.len() {
+        if self.is_all_null() {
             return None;
         }
         // There is at least one non-null value.
@@ -240,13 +240,13 @@ impl BooleanChunked {
     }
 
     pub fn max(&self) -> Option<bool> {
-        if self.is_empty() || self.null_count() == self.len() {
+        if self.is_empty() || self.is_all_null() {
             return None;
         }
         if self.any() { Some(true) } else { Some(false) }
     }
     pub fn mean(&self) -> Option<f64> {
-        if self.is_empty() || self.null_count() == self.len() {
+        if self.is_empty() || self.is_all_null() {
             return None;
         }
         self.sum()
@@ -511,7 +511,7 @@ where
     ChunkedArray<T::PolarsPhysical>: ChunkAgg<T::Native>,
 {
     fn min_categorical(&self) -> Option<CatSize> {
-        if self.is_empty() || self.null_count() == self.len() {
+        if self.is_empty() || self.is_all_null() {
             return None;
         }
         if self.uses_lexical_ordering() {
@@ -530,7 +530,7 @@ where
     }
 
     fn max_categorical(&self) -> Option<CatSize> {
-        if self.is_empty() || self.null_count() == self.len() {
+        if self.is_empty() || self.is_all_null() {
             return None;
         }
         if self.uses_lexical_ordering() {
@@ -628,7 +628,7 @@ impl BinaryChunked {
         }
     }
     pub fn arg_min_binary(&self) -> Option<usize> {
-        if self.is_empty() || self.null_count() == self.len() {
+        if self.is_empty() || self.is_all_null() {
             return None;
         }
 
@@ -640,7 +640,7 @@ impl BinaryChunked {
     }
 
     pub fn arg_max_binary(&self) -> Option<usize> {
-        if self.is_empty() || self.null_count() == self.len() {
+        if self.is_empty() || self.is_all_null() {
             return None;
         }
 

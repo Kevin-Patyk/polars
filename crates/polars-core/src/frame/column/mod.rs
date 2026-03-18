@@ -539,6 +539,7 @@ impl Column {
             },
         }
     }
+
     #[inline]
     pub fn is_not_null(&self) -> BooleanChunked {
         match self {
@@ -546,6 +547,14 @@ impl Column {
             Self::Scalar(s) => {
                 BooleanChunked::full(s.name().clone(), !s.scalar().is_null(), s.len())
             },
+        }
+    }
+
+    #[inline]
+    pub fn is_all_null(&self) -> bool {
+        match self {
+            Self::Series(s) => s.is_all_null(),
+            Self::Scalar(s) => s.has_nulls(),
         }
     }
 
@@ -1022,7 +1031,7 @@ impl Column {
             return IdxCa::from_vec(self.name().clone(), Vec::new());
         }
 
-        if self.null_count() == self.len() {
+        if self.is_all_null() {
             // We might need to maintain order so just respect the descending parameter.
             let values = if options.descending {
                 (0..self.len() as IdxSize).rev().collect()

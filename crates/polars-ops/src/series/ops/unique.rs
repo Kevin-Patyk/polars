@@ -31,7 +31,7 @@ where
 pub fn unique_counts(s: &Series) -> PolarsResult<Series> {
     if s.is_empty() {
         return Ok(IdxCa::new(s.name().clone(), [] as [IdxSize; 0]).into_series());
-    } else if s.null_count() == s.len() {
+    } else if s.is_all_null() {
         return Ok(IdxCa::new(s.name().clone(), [s.len() as IdxSize]).into_series());
     }
 
