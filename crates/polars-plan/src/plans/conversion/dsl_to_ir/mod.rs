@@ -273,31 +273,7 @@ pub fn to_alp_impl(lp: DslPlan, ctxt: &mut DslConversionContext) -> PolarsResult
                         a column dtype match not hitting any dtypes in the DataFrame"
                     );
                 },
-                _ => {
-                    let mut expanded = String::new();
-                    for e in out.iter().take(5) {
-                        expanded.push_str(&format!("\t{e:?},\n"))
-                    }
-                    // pop latest comma
-                    expanded.pop();
-                    if out.len() > 5 {
-                        expanded.push_str("\t...\n")
-                    }
-
-                    if cfg!(feature = "python") {
-                        polars_bail!(
-                            ComputeError:
-                            "The predicate passed to 'LazyFrame.filter' expanded to multiple expressions: \n\n{expanded}\n\
-                                This is ambiguous. Try to combine the predicates with the 'all' or `any' expression."
-                        )
-                    } else {
-                        polars_bail!(
-                            ComputeError:
-                            "The predicate passed to 'LazyFrame.filter' expanded to multiple expressions: \n\n{expanded}\n\
-                                This is ambiguous. Try to combine the predicates with the 'all_horizontal' or `any_horizontal' expression."
-                        )
-                    };
-                },
+                _ => all_horizontal(out).unwrap(),
             };
             let predicate_ae = to_expr_ir(
                 predicate,

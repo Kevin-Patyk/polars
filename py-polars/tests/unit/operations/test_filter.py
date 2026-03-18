@@ -360,3 +360,29 @@ def test_filter_group_by_23681(maintain_order: bool) -> None:
     )
 
     assert_frame_equal(df, expected, check_row_order=maintain_order)
+
+
+def test_filter_expanded_multi_col_comparison_22507() -> None:
+    df = pl.DataFrame({"x": [1, 2, 3, 4, 5], "y": [3, 4, 5, 6, 7]})
+    result = df.filter(pl.all() <= 4)
+    expected = pl.DataFrame({"x": [1, 2], "y": [3, 4]})
+    assert_frame_equal(result, expected)
+
+
+def test_filter_contains_any_multi_col_26950() -> None:
+    df = pl.DataFrame(
+        {
+            "a": ["aabbaa", "bbccbb", "ccddcc"],
+            "b": ["aaa", "ccc", "ddd"],
+            "c": ["bb", "ff", "zz"],
+        }
+    )
+    result = df.filter(pl.col("a", "b").str.contains_any(["aa", "cc"]))
+    expected = pl.DataFrame(
+        {
+            "a": ["aabbaa", "bbccbb"],
+            "b": ["aaa", "ccc"],
+            "c": ["bb", "ff"],
+        }
+    )
+    assert_frame_equal(result, expected)
