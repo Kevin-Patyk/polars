@@ -118,7 +118,7 @@ where
 }
 
 fn cum_max_bool(ca: &BooleanChunked, reverse: bool, init: Option<bool>) -> BooleanChunked {
-    if ca.len() == ca.null_count() {
+    if ca.is_all_null() {
         return ca.clone();
     }
 
@@ -160,7 +160,7 @@ fn cum_max_bool(ca: &BooleanChunked, reverse: bool, init: Option<bool>) -> Boole
 }
 
 fn cum_min_bool(ca: &BooleanChunked, reverse: bool, init: Option<bool>) -> BooleanChunked {
-    if ca.len() == ca.null_count() {
+    if ca.is_all_null() {
         return ca.clone();
     }
 

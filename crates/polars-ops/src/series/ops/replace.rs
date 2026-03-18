@@ -159,7 +159,7 @@ pub fn replace_strict(
 
     if old.is_empty() {
         polars_ensure!(
-            s.len() == s.null_count(),
+            s.is_all_null(),
             InvalidOperation: "must specify which values to replace"
         );
         return Ok(s.clone());
