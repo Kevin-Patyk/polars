@@ -1191,7 +1191,8 @@ fn lower_exprs_with_ctx(
                 input: ref inner_exprs,
                 function:
                     IRFunctionExpr::FillNullWithStrategy(
-                        polars_core::prelude::FillNullStrategy::Forward(limit),
+                        strategy @ (polars_core::prelude::FillNullStrategy::Forward(limit)
+                        | polars_core::prelude::FillNullStrategy::Backward(limit)),
                     ),
                 options: _,
             } => {
@@ -1206,7 +1207,12 @@ fn lower_exprs_with_ctx(
                     &[inner_exprs[0].with_alias(value_key.clone())],
                     ctx,
                 )?;
-                let node_kind = PhysNodeKind::ForwardFill { input, limit };
+                let node_kind =
+                    if matches!(strategy, polars_core::prelude::FillNullStrategy::Forward(_)) {
+                        PhysNodeKind::ForwardFill { input, limit }
+                    } else {
+                        PhysNodeKind::BackwardFill { input, limit }
+                    };
 
                 let output_schema = Schema::from_iter([(value_key.clone(), value_dtype.clone())]);
                 let node_key = ctx
@@ -2078,6 +2084,56 @@ fn lower_exprs_with_ctx(
                 )?;
                 input_streams.insert(filter_stream);
                 transformed_exprs.push(AExprBuilder::col(out_name.clone(), ctx.expr_arena).node());
+            },
+
+            #[cfg(feature = "index_of")]
+            AExpr::Function {
+                input: ref inner_exprs,
+                function: IRFunctionExpr::IndexOf,
+                options: _,
+            } => {
+                // .select(expr.index_of(value))
+                //
+                // ->
+                //
+                // .select(col_name = expr, val_name = value)
+                // .with_row_index(idx_name)
+                // .filter(col_name.eq(val_name))
+                // .select(idx_name.first())
+                let col_name = unique_column_name();
+                let val_name = unique_column_name();
+                let idx_name = unique_column_name();
+
+                let col_val_stream = build_select_stream_with_ctx(
+                    input,
+                    &[
+                        inner_exprs[0].with_alias(col_name.clone()),
+                        inner_exprs[1].with_alias(val_name.clone()),
+                    ],
+                    ctx,
+                )?;
+                let row_index_stream =
+                    build_row_idx_stream(col_val_stream, idx_name.clone(), None, ctx.phys_sm);
+
+                let eq_node = AExprBuilder::col(col_name.clone(), ctx.expr_arena)
+                    .eq_validity(AExprBuilder::col(val_name, ctx.expr_arena), ctx.expr_arena);
+                let filter_stream = build_filter_stream(
+                    row_index_stream,
+                    eq_node.expr_ir(col_name),
+                    ctx.expr_arena,
+                    ctx.phys_sm,
+                    ctx.cache,
+                    StreamingLowerIRContext {
+                        prepare_visualization: ctx.prepare_visualization,
+                    },
+                )?;
+
+                let first_node = AExprBuilder::col(idx_name, ctx.expr_arena)
+                    .first(ctx.expr_arena)
+                    .node();
+                let (trans_stream, trans_node) = lower_reduce_node(filter_stream, first_node, ctx)?;
+                input_streams.insert(trans_stream);
+                transformed_exprs.push(trans_node);
             },
 
             AExpr::Function {
