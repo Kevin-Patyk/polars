@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import io
 import os
-import random
 from collections import defaultdict
 from collections.abc import (
     Generator,
@@ -11439,9 +11438,6 @@ class DataFrame:
         if n is not None and fraction is not None:
             msg = "cannot specify both `n` and `fraction`"
             raise ValueError(msg)
-
-        if seed is None:
-            seed = random.randint(0, 10000)
 
         if n is None and fraction is not None:
             if not isinstance(fraction, pl.Series):
