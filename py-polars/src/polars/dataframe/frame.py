@@ -11413,7 +11413,7 @@ class DataFrame:
             neither stable nor fully random.
         seed
             Seed for the random number generator. If set to None (default), a
-            random seed is generated for each sample operation.
+            random seed is generated for each time the sample is called.
 
         Examples
         --------
