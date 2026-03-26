@@ -2510,6 +2510,14 @@ def assert_schema_equal_py(
     check_column_order: bool,
     check_dtypes: bool,
 ) -> None: ...
+def compare_series_py(
+    left: PySeries,
+    right: PySeries,
+    *,
+    sort: bool,
+    keep_shape: bool,
+    keep_equal: bool,
+) -> PyDataFrame: ...
 
 # datatypes
 def _get_dtype_max(dt: DataType) -> PyExpr: ...

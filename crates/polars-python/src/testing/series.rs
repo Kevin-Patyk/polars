@@ -1,4 +1,5 @@
 use polars_testing::asserts::{SeriesEqualOptions, assert_series_equal};
+use polars_testing::compare::{CompareSeriesOptions, compare_series};
 use pyo3::prelude::*;
 
 use crate::PySeries;
@@ -31,4 +32,27 @@ pub fn assert_series_equal_py(
     };
 
     assert_series_equal(left_series, right_series, options).map_err(|e| PyPolarsErr::from(e).into())
+}
+
+#[pyfunction]
+#[pyo3(signature = (left, right, *, sort, keep_shape, keep_equal))]
+pub fn compare_series_py(
+    left: &PySeries,
+    right: &PySeries,
+    sort: bool,
+    keep_shape: bool,
+    keep_equal: bool,
+) -> PyResult<crate::PyDataFrame> {
+    let left_series = &left.series.read();
+    let right_series = &right.series.read();
+
+    let options = CompareSeriesOptions {
+        sort,
+        keep_shape,
+        keep_equal,
+    };
+
+    compare_series(left_series, right_series, options)
+        .map(|df| df.into())
+        .map_err(|e| PyPolarsErr::from(e).into())
 }
