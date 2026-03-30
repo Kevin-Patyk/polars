@@ -270,6 +270,10 @@ pub enum PhysNodeKind {
     },
     Rle(PhysStream),
     RleId(PhysStream),
+    SortedUnique {
+        input: PhysStream,
+        keys: Vec<PlSmallStr>,
+    },
     PeakMinMax {
         input: PhysStream,
         is_peak_max: bool,
@@ -353,6 +357,13 @@ pub enum PhysNodeKind {
         closed: ClosedWindow,
         slice: Option<(IdxSize, IdxSize)>,
         aggs: Vec<ExprIR>,
+    },
+
+    #[cfg(feature = "is_first_distinct")]
+    IsFirstDistinct {
+        input: PhysStream,
+        out_name: PlSmallStr,
+        columns: Vec<PlSmallStr>,
     },
 
     EquiJoin {
@@ -495,7 +506,14 @@ fn visit_node_inputs_mut(
             | PhysNodeKind::BackwardFill { input, .. }
             | PhysNodeKind::Rle(input)
             | PhysNodeKind::RleId(input)
+            | PhysNodeKind::SortedUnique { input, .. }
             | PhysNodeKind::PeakMinMax { input, .. } => {
+                rec!(input.node);
+                visit(input);
+            },
+
+            #[cfg(feature = "is_first_distinct")]
+            PhysNodeKind::IsFirstDistinct { input, .. } => {
                 rec!(input.node);
                 visit(input);
             },
@@ -681,7 +699,7 @@ pub fn build_physical_plan(
     ir_arena: &mut Arena<IR>,
     expr_arena: &mut Arena<AExpr>,
     phys_sm: &mut SlotMap<PhysNodeKey, PhysNode>,
-    ctx: StreamingLowerIRContext,
+    ctx: StreamingLowerIRContext<'_>,
 ) -> PolarsResult<PhysNodeKey> {
     let mut schema_cache = PlHashMap::with_capacity(ir_arena.len());
     let mut expr_cache = ExprCache::with_capacity(expr_arena.len());

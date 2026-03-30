@@ -455,6 +455,13 @@ fn visualize_plan_rec(
         ),
         PhysNodeKind::Rle(input) => ("rle".to_owned(), &[*input][..]),
         PhysNodeKind::RleId(input) => ("rle_id".to_owned(), &[*input][..]),
+        PhysNodeKind::SortedUnique { input, keys } => {
+            let mut out = String::from("sorted-unique\n");
+            for key in keys.iter() {
+                writeln!(&mut out, "{key}",).unwrap();
+            }
+            (out, &[*input][..])
+        },
         PhysNodeKind::PeakMinMax { input, is_peak_max } => (
             if *is_peak_max { "peak_max" } else { "peak_min" }.to_owned(),
             &[*input][..],
@@ -656,6 +663,20 @@ fn visualize_plan_rec(
             )
             .unwrap();
 
+            (s, from_ref(input))
+        },
+
+        #[cfg(feature = "is_first_distinct")]
+        PhysNodeKind::IsFirstDistinct {
+            input,
+            out_name,
+            columns,
+        } => {
+            let mut s = String::new();
+            let mut f = EscapeLabel(&mut s);
+            writeln!(f, "is-first-distinct").unwrap();
+            writeln!(f, "key: {}", columns.join(", ")).unwrap();
+            write!(f, "out: {out_name}").unwrap();
             (s, from_ref(input))
         },
         PhysNodeKind::MergeJoin {

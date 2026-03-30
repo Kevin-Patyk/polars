@@ -17,6 +17,8 @@ pub mod in_memory_source;
 pub mod input_independent_select;
 pub mod io_sinks;
 pub mod io_sources;
+#[cfg(feature = "is_first_distinct")]
+pub mod is_first_distinct;
 pub mod joins;
 pub mod map;
 #[cfg(feature = "merge_sorted")]
@@ -35,6 +37,7 @@ pub mod select;
 pub mod shift;
 pub mod simple_projection;
 pub mod sorted_group_by;
+pub mod sorted_unique;
 pub mod streaming_slice;
 pub mod top_k;
 pub mod unordered_union;
