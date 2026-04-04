@@ -19,6 +19,12 @@ pub trait NamedFrom<T, Phantom: ?Sized> {
     fn new(name: PlSmallStr, _: T) -> Self;
 }
 
+pub trait FallibleNamedFrom<T, Phantom: ?Sized> {
+    fn try_build(name: PlSmallStr, _: T) -> PolarsResult<Self>
+    where
+        Self: Sized;
+}
+
 pub trait NamedFromOwned<T> {
     /// Initialize by name and values.
     fn from_vec(name: PlSmallStr, _: T) -> Self;
@@ -138,13 +144,13 @@ impl_named_from_range!(std::ops::Range<i32>, Int32Type);
 impl_named_from_range!(std::ops::Range<u64>, UInt64Type);
 impl_named_from_range!(std::ops::Range<u32>, UInt32Type);
 
-impl<T: AsRef<[Series]>> NamedFrom<T, ListType> for Series {
-    fn new(name: PlSmallStr, s: T) -> Self {
+impl<T: AsRef<[Series]>> FallibleNamedFrom<T, ListType> for Series {
+    fn try_build(name: PlSmallStr, s: T) -> PolarsResult<Self> {
         let series_slice = s.as_ref();
         let list_cap = series_slice.len();
 
         if series_slice.is_empty() {
-            return Series::new_empty(name, &DataType::Null);
+            return Ok(Series::new_empty(name, &DataType::Null));
         }
 
         let dt = series_slice[0].dtype();
@@ -153,14 +159,14 @@ impl<T: AsRef<[Series]>> NamedFrom<T, ListType> for Series {
 
         let mut builder = get_list_builder(dt, values_cap, list_cap, name);
         for series in series_slice {
-            builder.append_series(series).unwrap();
+            builder.append_series(series)?;
         }
-        builder.finish().into_series()
+        Ok(builder.finish().into_series())
     }
 }
 
-impl<T: AsRef<[Option<Series>]>> NamedFrom<T, [Option<Series>]> for Series {
-    fn new(name: PlSmallStr, s: T) -> Self {
+impl<T: AsRef<[Option<Series>]>> FallibleNamedFrom<T, [Option<Series>]> for Series {
+    fn try_build(name: PlSmallStr, s: T) -> PolarsResult<Self> {
         let series_slice = s.as_ref();
         let values_cap = series_slice.iter().fold(0, |acc, opt_s| {
             acc + opt_s.as_ref().map(|s| s.len()).unwrap_or(0)
@@ -172,11 +178,12 @@ impl<T: AsRef<[Option<Series>]>> NamedFrom<T, [Option<Series>]> for Series {
 
         let mut builder = get_list_builder(dt, values_cap, series_slice.len(), name);
         for series in series_slice {
-            builder.append_opt_series(series.as_ref()).unwrap();
+            builder.append_opt_series(series.as_ref())?;
         }
-        builder.finish().into_series()
+        Ok(builder.finish().into_series())
     }
 }
+
 impl<'a, T: AsRef<[&'a str]>> NamedFrom<T, [&'a str]> for Series {
     fn new(name: PlSmallStr, v: T) -> Self {
         StringChunked::from_slice(name, v.as_ref()).into_series()
@@ -479,7 +486,11 @@ mod test {
 
     #[test]
     fn build_series_from_empty_series_vec() {
-        let empty_series = Series::new("test".into(), Vec::<Series>::new());
+        let empty_series = Series::try_build(
+            "test".into(),
+            Vec::<Series>::new(),
+        )
+        .unwrap();
         assert_eq!(empty_series.len(), 0);
         assert_eq!(*empty_series.dtype(), DataType::Null);
         assert_eq!(empty_series.name().as_str(), "test");

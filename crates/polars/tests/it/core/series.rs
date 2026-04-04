@@ -31,13 +31,13 @@ fn test_min_max_sorted_desc() {
 
 #[test]
 fn test_construct_list_of_null_series() {
-    let s = Series::new(
+    let s = Series::try_build(
         "a".into(),
         [
             Series::new_null("a1".into(), 1),
             Series::new_null("a1".into(), 1),
         ],
-    );
+    ).unwrap();
     assert_eq!(s.null_count(), 0);
     assert_eq!(s.field().name(), "a");
 }

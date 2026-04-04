@@ -52,7 +52,7 @@ pub(crate) use crate::frame::group_by::aggregations::*;
 pub use crate::frame::group_by::*;
 pub use crate::frame::{DataFrame, UniqueKeepStrategy};
 pub use crate::hashing::VecHash;
-pub use crate::named_from::{NamedFrom, NamedFromOwned};
+pub use crate::named_from::{NamedFrom, NamedFromOwned, FallibleNamedFrom};
 pub use crate::scalar::Scalar;
 pub use crate::schema::*;
 #[cfg(feature = "checked_arithmetic")]
