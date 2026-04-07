@@ -282,6 +282,7 @@ pub enum PhysNodeKind {
         input: PhysStream,
         descending: Option<bool>,
         nulls_last: Option<bool>,
+        output_name: PlSmallStr,
     },
 
     OrderedUnion {
