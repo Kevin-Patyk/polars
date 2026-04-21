@@ -4025,3 +4025,20 @@ def test_full_join_rewrite_to_right_with_cast() -> None:
         },
     )
     assert_frame_equal(out, ret, check_column_order=True, check_row_order=False)
+
+
+def test_full_join_coalesce_empty_suffix() -> None:
+    df1 = pl.DataFrame({"a": [0, 1], "b": [10, 11]})
+    df2 = pl.DataFrame({"a": [1, 2], "c": [11, 12]})
+
+    result = df1.join(df2, how="full", on="a", coalesce=True, suffix="")
+
+    expected = pl.DataFrame(
+        {
+            "a": [0, 1, 2],
+            "b": [10, 11, None],
+            "c": [None, 11, 12],
+        }
+    )
+
+    assert_frame_equal(result, expected, check_row_order=False)
