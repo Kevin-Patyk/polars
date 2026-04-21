@@ -36,17 +36,16 @@ pub fn _finish_join(
 
     let suffix = get_suffix(suffix);
 
-    df_right.rename_many(rename_strs.iter().filter_map(|name| {
-        let new_name = _join_suffix_name(name.as_str(), suffix.as_str());
-        if new_name == name.as_str() {
-            None
-        } else {
-            Some((name.as_str(), new_name))
-        }
+    df_right.rename_many(rename_strs.iter().map(|name| {
+        (
+            name.as_str(),
+            _join_suffix_name(name.as_str(), suffix.as_str()),
+        )
     }))?;
 
     drop(left_names);
-    unsafe { df_left.columns_mut() }.extend_from_slice(df_right.columns());
+    // Safety: IR resolving should guarantee this passes
+    unsafe { df_left.hstack_mut_unchecked(df_right.columns()) };
     Ok(df_left)
 }
 
