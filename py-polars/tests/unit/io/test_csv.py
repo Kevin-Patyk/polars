@@ -5,6 +5,7 @@ import io
 import os
 import sys
 import textwrap
+import warnings
 import zlib
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal as D
@@ -2348,7 +2349,9 @@ def test_write_csv_to_dangling_file_17328(
     chunk_override: None, df_no_lists: pl.DataFrame, tmp_path: Path
 ) -> None:
     tmp_path.mkdir(exist_ok=True)
-    df_no_lists.write_csv((tmp_path / "dangling.csv").open("w"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        df_no_lists.write_csv((tmp_path / "dangling.csv").open("w"))
 
 
 @pytest.mark.may_fail_cloud  # really hard to mimic this error
@@ -2356,9 +2359,12 @@ def test_write_csv_to_dangling_file_17328(
 def test_write_csv_raise_on_non_utf8_17328(
     chunk_override: None, df_no_lists: pl.DataFrame, tmp_path: Path
 ) -> None:
-    tmp_path.mkdir(exist_ok=True)
-    with pytest.raises(InvalidOperationError, match="file encoding is not UTF-8"):
-        df_no_lists.write_csv((tmp_path / "dangling.csv").open("w", encoding="gbk"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        tmp_path.mkdir(exist_ok=True)
+        with pytest.raises(InvalidOperationError, match="file encoding is not UTF-8"):
+            df_no_lists.write_csv((tmp_path / "dangling.csv").open("w", encoding="gbk"))
 
 
 @pytest.mark.may_fail_auto_streaming  # read->scan_csv dispatch
@@ -3137,3 +3143,33 @@ def test_provided_schema_mismatch_truncate(chunk_override: None, read_fn: str) -
 def test_read_batch_csv_deprecations_26479(foods_file_path: Path) -> None:
     with pytest.warns(DeprecationWarning, match=r"`read_csv_batched` is deprecated"):
         pl.read_csv_batched(foods_file_path)
+
+
+def test_scan_csv_missing_columns_27268() -> None:
+    files = [io.StringIO(), io.StringIO()]
+    pl.DataFrame(
+        {
+            "b": "b1",
+        }
+    ).write_csv(files[0])
+    pl.DataFrame(
+        {
+            "a": "a1",
+            "b": "b2",
+        }
+    ).write_csv(files[1])
+
+    files[0].seek(0)
+    files[1].seek(0)
+
+    df = pl.scan_csv(files, missing_columns="insert").collect()  # type: ignore[arg-type]
+
+    assert_frame_equal(
+        df,
+        pl.DataFrame(
+            {
+                "b": ["b1", "b2"],
+                "a": [None, "a1"],
+            }
+        ),
+    )
