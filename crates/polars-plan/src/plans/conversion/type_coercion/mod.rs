@@ -1051,6 +1051,22 @@ See https://github.com/pola-rs/polars/issues/22149 for more information."
                     }));
                 };
 
+                if let DataType::List(inner) = &type_old {
+                    if inner.is_object() {
+                        polars_bail!(
+                            InvalidOperation: "`old` input for `replace` must not contain Expr or object dtype values"
+                        );
+                    }
+                }
+
+                if let DataType::List(inner) = &type_new {
+                    if inner.is_object() {
+                        polars_bail!(
+                            InvalidOperation: "`new` input for `replace` must not contain Expr or object dtype values"
+                        );
+                    }
+                }
+
                 None
             },
             #[cfg(feature = "range")]

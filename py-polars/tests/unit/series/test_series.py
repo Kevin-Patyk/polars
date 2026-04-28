@@ -2490,3 +2490,20 @@ def test_full_null_cast_to_empty_struct_23276() -> None:
 
     s = pl.Series([None, None, None])
     assert s.cast(pl.Struct({})).to_list() == [None, None, None]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ([pl.lit(1)], [2]),
+        ([1], [pl.lit(2)]),
+        ([pl.lit(1)], [pl.lit(2)]),
+    ],
+)
+def test_replace_with_expr_raises_22591(old: list[Any], new: list[Any]) -> None:
+    s = pl.Series([1])
+    with pytest.raises(
+        pl.exceptions.InvalidOperationError,
+        match="must not contain Expr or object dtype values",
+    ):
+        s.replace(old, new)
