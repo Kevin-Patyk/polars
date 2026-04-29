@@ -107,11 +107,17 @@ impl PyDataFrame {
     /// since those can't be converted correctly via PyArrow. The calling Python
     /// code should make sure these are not included.
     #[allow(clippy::wrong_self_convention)]
-    pub fn to_pandas(&self, py: Python) -> PyResult<Vec<Py<PyAny>>> {
-        let mut df = self.df.write();
-        let dfr = &mut *df; // Lock guard isn't Send, but mut ref is.
-        py.enter_polars_ok(|| dfr.rechunk_mut_par())?;
-        let df = RwLockWriteGuard::downgrade(df);
+    pub fn to_pandas(&self) -> PyResult<Vec<Py<PyAny>>> {
+        let df = self.df.read();
+        let df = if df.columns().iter().any(|c| c.n_chunks() > 1) {
+            drop(df);
+            let mut df = self.df.write();
+            let dfr = &mut *df; // Lock guard isn't Send, but mut ref is.
+            dfr.rechunk_mut_par();
+            RwLockWriteGuard::downgrade(df)
+        } else {
+            df
+        };
         Python::attach(|py| {
             let pyarrow = py.import("pyarrow")?;
             let dict_columns = df
