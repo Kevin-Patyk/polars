@@ -109,7 +109,7 @@ impl PyDataFrame {
     #[allow(clippy::wrong_self_convention)]
     pub fn to_pandas(&self, py: Python) -> PyResult<Vec<Py<PyAny>>> {
         let mut df = self.df.read().clone();
-        py.enter_polars_ok(|| df.rechunk_mut_par())?; 
+        py.enter_polars_ok(|| df.rechunk_mut_par())?;
         *self.df.write() = df.clone();
 
         let pyarrow = py.import("pyarrow")?;
@@ -132,11 +132,8 @@ impl PyDataFrame {
             .map(|c| matches!(c.dtype(), DataType::Enum(_, _)))
             .collect_vec();
 
-        let enum_dtype = ArrowDataType::Dictionary(
-            IntegerType::Int64,
-            Box::new(ArrowDataType::LargeUtf8),
-            true,
-        );
+        let enum_dtype =
+            ArrowDataType::Dictionary(IntegerType::Int64, Box::new(ArrowDataType::LargeUtf8), true);
         let categorical_dtype = ArrowDataType::Dictionary(
             IntegerType::Int64,
             Box::new(ArrowDataType::LargeUtf8),
@@ -150,8 +147,8 @@ impl PyDataFrame {
                 let (schema, mut arrays) = rb.into_schema_and_arrays();
 
                 // Pandas does not allow unsigned dictionary indices, so replace them.
-                replaced_schema = (replaced_schema.is_none() && !dict_columns.is_empty())
-                    .then(|| {
+                replaced_schema =
+                    (replaced_schema.is_none() && !dict_columns.is_empty()).then(|| {
                         let mut schema = schema.as_ref().clone();
                         for i in &dict_columns {
                             let (_, field) = schema.get_at_index_mut(*i).unwrap();
@@ -171,12 +168,9 @@ impl PyDataFrame {
                     } else {
                         &categorical_dtype
                     };
-                    let out = polars_compute::cast::cast(
-                        &**arr,
-                        cast_dtype,
-                        CastOptionsImpl::default(),
-                    )
-                    .unwrap();
+                    let out =
+                        polars_compute::cast::cast(&**arr, cast_dtype, CastOptionsImpl::default())
+                            .unwrap();
                     *arr = out;
                 }
                 let schema = replaced_schema
