@@ -8125,7 +8125,7 @@ class Series:
         *,
         fraction: float | None = None,
         with_replacement: bool = False,
-        shuffle: bool = False,
+        shuffle: bool | None = None,
         seed: int | None = None,
     ) -> Series:
         """
@@ -8141,7 +8141,12 @@ class Series:
         with_replacement
             Allow values to be sampled more than once.
         shuffle
-            Shuffle the order of sampled data points.
+            Determines the order of the sampled values.
+            If True, sampled values are explicitly shuffled.
+            If False, the relative order of the sampled values is preserved.
+            (i.e. they appear in the same order as the original Series).
+            If None (default), no ordering guarantee; uses the most performant
+            algorithm.
         seed
             Seed for the random number generator. If set to None (default), a
             random seed is generated for each sample operation.

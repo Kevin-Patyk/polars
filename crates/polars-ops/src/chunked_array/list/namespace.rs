@@ -576,7 +576,7 @@ pub trait ListNameSpaceImpl: AsList {
         &self,
         n: &Series,
         with_replacement: bool,
-        shuffle: bool,
+        shuffle: Option<bool>,
         seed: Option<u64>,
     ) -> PolarsResult<ListChunked> {
         use std::borrow::Cow;
@@ -635,7 +635,7 @@ pub trait ListNameSpaceImpl: AsList {
         &self,
         fraction: &Series,
         with_replacement: bool,
-        shuffle: bool,
+        shuffle: Option<bool>,
         seed: Option<u64>,
     ) -> PolarsResult<ListChunked> {
         use std::borrow::Cow;

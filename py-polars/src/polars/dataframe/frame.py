@@ -11411,7 +11411,7 @@ class DataFrame:
         *,
         fraction: float | Series | None = None,
         with_replacement: bool = False,
-        shuffle: bool = False,
+        shuffle: bool | None = None,
         seed: int | None = None,
     ) -> DataFrame:
         """
@@ -11427,9 +11427,12 @@ class DataFrame:
         with_replacement
             Allow values to be sampled more than once.
         shuffle
-            If set to True, the order of the sampled rows will be shuffled. If
-            set to False (default), the order of the returned rows will be
-            neither stable nor fully random.
+            Determines the order of the sampled rows.
+            If True, sampled rows are explicitly shuffled.
+            If False, the relative order of the sampled rows is preserved.
+            (i.e. they appear in the same order as the original DataFrame).
+            If None (default), no ordering guarantee; uses the most performant
+            algorithm.
         seed
             Seed for the random number generator. If set to None (default), a
             random seed is generated for each time the sample is called.

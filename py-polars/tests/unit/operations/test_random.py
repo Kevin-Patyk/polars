@@ -27,7 +27,7 @@ def test_shuffle_group_by_reseed() -> None:
 def test_sample_expr() -> None:
     a = pl.Series("a", range(20))
     out = pl.select(
-        pl.lit(a).sample(fraction=0.5, with_replacement=False, seed=1)
+        pl.lit(a).sample(fraction=0.5, with_replacement=False, shuffle=False, seed=1)
     ).to_series()
 
     assert out.shape == (10,)
@@ -35,16 +35,18 @@ def test_sample_expr() -> None:
     assert out.unique().shape == (10,)
     assert set(out).issubset(set(a))
 
-    out = pl.select(pl.lit(a).sample(n=10, with_replacement=False, seed=1)).to_series()
+    out = pl.select(
+        pl.lit(a).sample(n=10, with_replacement=False, shuffle=False, seed=1)
+    ).to_series()
     assert out.shape == (10,)
     assert out.to_list() == out.sort().to_list()
     assert out.unique().shape == (10,)
 
     # pl.set_random_seed should lead to reproducible results.
     pl.set_random_seed(1)
-    result1 = pl.select(pl.lit(a).sample(n=10)).to_series()
+    result1 = pl.select(pl.lit(a).sample(n=10), shuffle=False).to_series()
     pl.set_random_seed(1)
-    result2 = pl.select(pl.lit(a).sample(n=10)).to_series()
+    result2 = pl.select(pl.lit(a).sample(n=10), shuffle=False).to_series()
     assert_series_equal(result1, result2)
 
 
@@ -73,17 +75,19 @@ def test_sample_n_expr() -> None:
         }
     )
 
-    out_df = df.sample(pl.Series([3]), seed=0)
+    out_df = df.sample(pl.Series([3]), shuffle=False, seed=0)
     expected_df = pl.DataFrame({"group": [1, 1, 2], "val": [2, 3, 1]})
     assert_frame_equal(out_df, expected_df)
 
     agg_df = df.group_by("group", maintain_order=True).agg(
-        pl.col("val").sample(pl.col("val").max(), seed=0)
+        pl.col("val").sample(pl.col("val").max(), shuffle=False, seed=0)
     )
     expected_df = pl.DataFrame({"group": [1, 2], "val": [[1, 2, 3], [2, 1]]})
     assert_frame_equal(agg_df, expected_df)
 
-    select_df = df.select(pl.col("val").sample(pl.col("val").max(), seed=0))
+    select_df = df.select(
+        pl.col("val").sample(pl.col("val").max(), shuffle=False, seed=0)
+    )
     expected_df = pl.DataFrame({"val": [2, 3, 1]})
     assert_frame_equal(select_df, expected_df)
 
