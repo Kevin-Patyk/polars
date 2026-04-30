@@ -44,6 +44,7 @@ use polars_time::{ClosedWindow, Duration};
 use polars_utils::arena::{Arena, Node};
 use polars_utils::pl_str::PlSmallStr;
 use polars_utils::slice_enum::Slice;
+use polars_utils::{UnitVec, unitvec};
 use slotmap::{SecondaryMap, SlotMap};
 pub use to_graph::physical_plan_to_graph;
 
@@ -70,16 +71,31 @@ impl PhysNodeKey {
 /// acyclic graph of operations that can run on the streaming engine.
 #[derive(Clone, Debug)]
 pub struct PhysNode {
-    output_schema: Arc<Schema>,
+    output_schemas: UnitVec<Arc<Schema>>,
     kind: PhysNodeKind,
 }
 
 impl PhysNode {
     pub fn new(output_schema: Arc<Schema>, kind: PhysNodeKind) -> Self {
         Self {
-            output_schema,
+            output_schemas: unitvec![output_schema],
             kind,
         }
+    }
+
+    pub fn new_multi_output(output_schemas: UnitVec<Arc<Schema>>, kind: PhysNodeKind) -> Self {
+        Self {
+            output_schemas,
+            kind,
+        }
+    }
+
+    pub fn output_schema(&self, port_idx: usize) -> &Arc<Schema> {
+        &self.output_schemas[port_idx]
+    }
+
+    pub fn output_schema_mut(&mut self, port_idx: usize) -> &mut Arc<Schema> {
+        &mut self.output_schemas[port_idx]
     }
 
     pub fn kind(&self) -> &PhysNodeKind {
@@ -105,6 +121,17 @@ impl PhysStream {
     // Convenience method to refer to the first output port of a physical node.
     pub fn first(node: PhysNodeKey) -> Self {
         Self { node, port: 0 }
+    }
+
+    pub fn output_schema<'sm>(&self, sm: &'sm SlotMap<PhysNodeKey, PhysNode>) -> &'sm Arc<Schema> {
+        sm[self.node].output_schema(self.port)
+    }
+
+    pub fn output_schema_mut<'sm>(
+        &self,
+        sm: &'sm mut SlotMap<PhysNodeKey, PhysNode>,
+    ) -> &'sm mut Arc<Schema> {
+        sm[self.node].output_schema_mut(self.port)
     }
 }
 
@@ -724,7 +751,7 @@ fn visit_node_inputs_mut(
 }
 
 fn insert_multiplexers(roots: Vec<PhysNodeKey>, phys_sm: &mut SlotMap<PhysNodeKey, PhysNode>) {
-    let mut refcount = PlHashMap::new();
+    let mut refcount: PlHashMap<_, usize> = PlHashMap::new();
     visit_node_inputs_mut(roots.clone(), phys_sm, |i| {
         *refcount.entry(*i).or_insert(0) += 1;
     });
@@ -732,10 +759,10 @@ fn insert_multiplexers(roots: Vec<PhysNodeKey>, phys_sm: &mut SlotMap<PhysNodeKe
     let mut multiplexer_map: PlHashMap<PhysStream, PhysStream> = refcount
         .into_iter()
         .filter(|(_stream, refcount)| *refcount > 1)
-        .map(|(stream, _refcount)| {
-            let input_schema = phys_sm[stream.node].output_schema.clone();
-            let multiplexer_node = phys_sm.insert(PhysNode::new(
-                input_schema,
+        .map(|(stream, refcount)| {
+            let input_schema = Arc::clone(stream.output_schema(phys_sm));
+            let multiplexer_node = phys_sm.insert(PhysNode::new_multi_output(
+                (0..refcount).map(|_| Arc::clone(&input_schema)).collect(),
                 PhysNodeKind::Multiplexer { input: stream },
             ));
             (stream, PhysStream::first(multiplexer_node))
