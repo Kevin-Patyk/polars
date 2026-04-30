@@ -11446,7 +11446,7 @@ class DataFrame:
         ...         "ham": ["a", "b", "c"],
         ...     }
         ... )
-        >>> df.sample(n=2, seed=0)  # doctest: +IGNORE_RESULT
+        >>> df.sample(n=2, shuffle=False, seed=0)  # doctest: +IGNORE_RESULT
         shape: (2, 3)
         ┌─────┬─────┬─────┐
         │ foo ┆ bar ┆ ham │

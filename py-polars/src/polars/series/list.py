@@ -185,7 +185,7 @@ class ListNameSpace:
         Examples
         --------
         >>> s = pl.Series("values", [[1, 2, 3], [4, 5]])
-        >>> s.list.sample(n=pl.Series("n", [2, 1]), seed=1)
+        >>> s.list.sample(n=pl.Series("n", [2, 1]), shuffle=False, seed=1)
         shape: (2,)
         Series: 'values' [list[i64]]
         [

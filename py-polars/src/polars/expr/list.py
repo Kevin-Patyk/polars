@@ -194,7 +194,11 @@ class ExprListNameSpace:
         Examples
         --------
         >>> df = pl.DataFrame({"values": [[1, 2, 3], [4, 5]], "n": [2, 1]})
-        >>> df.with_columns(sample=pl.col("values").list.sample(n=pl.col("n"), seed=1))
+        >>> df.with_columns(
+        ...     sample=pl.col("values").list.sample(
+        ...         n=pl.col("n"), shuffle=False, seed=1
+        ...     )
+        ... )
         shape: (2, 3)
         ┌───────────┬─────┬───────────┐
         │ values    ┆ n   ┆ sample    │

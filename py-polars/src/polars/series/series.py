@@ -8154,7 +8154,7 @@ class Series:
         Examples
         --------
         >>> s = pl.Series("a", [1, 2, 3, 4, 5])
-        >>> s.sample(2, seed=0)  # doctest: +IGNORE_RESULT
+        >>> s.sample(2, shuffle=False, seed=0)  # doctest: +IGNORE_RESULT
         shape: (2,)
         Series: 'a' [i64]
         [

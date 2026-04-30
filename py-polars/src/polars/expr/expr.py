@@ -10366,7 +10366,11 @@ Consider using {self}.implode() instead"""
         Examples
         --------
         >>> df = pl.DataFrame({"a": [1, 2, 3]})
-        >>> df.select(pl.col("a").sample(fraction=1.0, with_replacement=True, seed=1))
+        >>> df.select(
+        ...     pl.col("a").sample(
+        ...         fraction=1.0, with_replacement=True, shuffle=False, seed=1
+        ...     )
+        ... )
         shape: (3, 1)
         ┌─────┐
         │ a   │
