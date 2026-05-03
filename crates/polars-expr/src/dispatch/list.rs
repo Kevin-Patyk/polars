@@ -153,6 +153,11 @@ pub(super) fn slice(args: &mut [Column]) -> PolarsResult<Column> {
             return Ok(list_ca.lst_slice(offset, slice_len).into_column());
         },
         (1, length_slice_len) => {
+            let list_ca = if list_ca.len() == 1 {
+                list_ca.new_from_index(0, length_slice_len)
+            } else {
+                list_ca.clone()
+            };
             check_slice_arg_shape(length_slice_len, list_ca.len(), "length")?;
             let offset = offset_s.get(0).unwrap().try_extract::<i64>()?;
             // cast to i64 as it is more likely that it is that dtype
