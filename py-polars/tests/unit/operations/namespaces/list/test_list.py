@@ -1383,3 +1383,19 @@ def test_list_slice_broadcast_27480(offset: Any, length: Any) -> None:
     )
 
     assert_frame_equal(result, expected)
+def test_list_eval_exceed_idx_size() -> None:
+    s = pl.Series([None])
+    s = s.new_from_index(0, 2**31)
+    assert (
+        pl.Series("a", [s, s.head(-1), s.head(-2)])
+        .to_frame()
+        .select(
+            count=pl.col("a").list.eval(pl.element().count()),
+            len=pl.col("a").list.eval(pl.element().len()),
+            unique=pl.col("a").list.eval(pl.element().unique()),
+        )
+    ).to_dict(as_series=False) == {
+        "count": [[0], [0], [0]],
+        "len": [[2147483648], [2147483647], [2147483646]],
+        "unique": [[None], [None], [None]],
+    }
