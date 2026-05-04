@@ -88,7 +88,8 @@ impl EvalExpr {
         // Batch when the total number of inner elements exceeds IdxSize::MAX to avoid
         // truncating offset/length casts below. Each batch covers a contiguous row-range
         // whose accumulated inner element count stays within IdxSize::MAX.
-        if flattened_len > IdxSize::MAX as usize {
+        const LIMIT: usize = (IdxSize::MAX - 1) as usize;
+        if flattened_len > LIMIT {
             let offsets = ca.offsets()?;
             // offsets_slice[i] / offsets_slice[i+1] are the start/end of row i.
             let offsets_slice = offsets.as_slice();
@@ -100,7 +101,7 @@ impl EvalExpr {
                 if batch_row_start >= ca.len() {
                     break;
                 }
-                let threshold = batch_inner_start + IdxSize::MAX as i64;
+                let threshold = batch_inner_start + LIMIT as i64;
                 // Binary search for the first row whose end offset exceeds the threshold.
                 // offsets_slice[batch_row_start+1..] holds end offsets for rows
                 // batch_row_start, batch_row_start+1, …; partition_point returns how many fit.
@@ -250,20 +251,59 @@ impl EvalExpr {
         as_list: bool,
         is_agg: bool,
     ) -> PolarsResult<Column> {
-        let df = DataFrame::empty_with_height(ca.len());
-        let ca = ca
-            .trim_lists_to_normalized_offsets()
-            .map_or(Cow::Borrowed(ca), Cow::Owned);
-
         // Fast path: Empty or only nulls.
         if ca.null_count() == ca.len() {
             let name = self.output_field.name.clone();
             return Ok(Column::full_null(name, ca.len(), self.output_field.dtype()));
         }
 
+        let df = DataFrame::empty_with_height(ca.len());
+        let ca = ca
+            .trim_lists_to_normalized_offsets()
+            .map_or(Cow::Borrowed(ca), Cow::Owned);
+
+        // SAFETY:
+        // We may temporarily create lengths that exceed IDXSIZE
+        // If that happens we slice and process in batches.
+        unsafe { _set_check_length(false) };
         let flattened = ca.get_inner().into_column();
+        unsafe { _set_check_length(true) };
         let flattened_len = flattened.len();
         let validity = ca.rechunk_validity();
+        let width = ca.width();
+
+        let limit = if cfg!(debug_assertions) {
+            std::env::var("POLARS_ARRAY_EVAL_IDX_SIZE_LIMIT")
+                .map(|v| v.parse::<usize>().unwrap())
+                .unwrap_or(IdxSize::MAX as usize - 1)
+        } else {
+            (IdxSize::MAX - 1) as usize
+        };
+
+        if flattened_len > limit && width > 0 {
+            if state.verbose() {
+                eprintln!("IdxSize limit hit; chunking branch hit");
+            }
+
+            let rows_per_batch = limit / width;
+            polars_ensure!(rows_per_batch > 0, ComputeError: "array elements larger than IdxSize::MAX are not supported");
+            let mut batch_results: VecDeque<Column> = VecDeque::new();
+            let mut batch_row_start = 0usize;
+
+            while batch_row_start < ca.len() {
+                let batch_len = (ca.len() - batch_row_start).min(rows_per_batch);
+                let batch = ca.slice(batch_row_start as i64, batch_len);
+                batch_results
+                    .push_back(self.evaluate_on_array_chunked(&batch, state, as_list, is_agg)?);
+                batch_row_start += batch_len;
+            }
+
+            let mut out = batch_results.pop_front().unwrap();
+            for other in batch_results {
+                out.append_owned(other)?;
+            }
+            return Ok(out);
+        }
 
         let may_fail_on_masked_out_elements = self.evaluation_is_fallible && ca.has_nulls();
 
