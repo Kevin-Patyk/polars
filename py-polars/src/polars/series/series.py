@@ -890,7 +890,7 @@ class Series:
 
         elif isinstance(other, timedelta) and self.dtype == Duration:
             time_unit = self.dtype.time_unit  # type: ignore[attr-defined]
-            td = timedelta_to_int(other, time_unit)  # type: ignore[arg-type]
+            td = timedelta_to_int(other, time_unit)
             f = get_ffi_func(op + "_<>", Int64, self._s)
             assert f is not None
             return self._from_pyseries(f(td))
@@ -4030,6 +4030,8 @@ class Series:
         """
         Get unique elements in series.
 
+        `null` is considered to be a unique value for the purposes of this operation.
+
         Parameters
         ----------
         maintain_order
@@ -4049,7 +4051,10 @@ class Series:
         """
 
     def gather(
-        self, indices: int | list_[int] | Expr | Series | np.ndarray[Any, Any]
+        self,
+        indices: int | list_[int] | Expr | Series | np.ndarray[Any, Any],
+        *,
+        null_on_oob: bool = False,
     ) -> Series:
         """
         Take values by index.
@@ -4058,6 +4063,11 @@ class Series:
         ----------
         indices
             Index location used for selection.
+        null_on_oob
+            Behavior if an index is out of bounds:
+
+            - True  -> set the result to null
+            - False -> raise an error
 
         Examples
         --------
@@ -4068,6 +4078,16 @@ class Series:
         [
             2
             4
+        ]
+
+        Use `null_on_oob=True` to return null for out-of-bounds indices.
+
+        >>> s.gather([1, 10], null_on_oob=True)
+        shape: (2,)
+        Series: 'a' [i64]
+        [
+            2
+            null
         ]
         """
 
@@ -8200,9 +8220,11 @@ class Series:
         """
         Count the number of unique values in this Series.
 
+        `null` is considered to be a unique value for the purposes of this operation.
+
         Examples
         --------
-        >>> s = pl.Series("a", [1, 2, 2, 3])
+        >>> s = pl.Series("a", [1, 2, 2, None])
         >>> s.n_unique()
         3
         """
