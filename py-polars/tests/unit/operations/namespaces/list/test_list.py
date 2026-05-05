@@ -1386,7 +1386,7 @@ def test_list_sample_reworked_shuffle_23557(shuffle: bool | None) -> None:
         assert len(result) == 2
         assert set(result).issubset({1, 2, 3, 4})
 
- 
+
 def test_list_eval_exceed_idx_size() -> None:
     s = pl.Series([None])
     s = s.new_from_index(0, 2**31)
