@@ -1385,3 +1385,21 @@ def test_list_sample_reworked_shuffle_23557(shuffle: bool | None) -> None:
     else:
         assert len(result) == 2
         assert set(result).issubset({1, 2, 3, 4})
+
+ 
+def test_list_eval_exceed_idx_size() -> None:
+    s = pl.Series([None])
+    s = s.new_from_index(0, 2**31)
+    assert (
+        pl.Series("a", [s, s.head(-1), s.head(-2)])
+        .to_frame()
+        .select(
+            count=pl.col("a").list.eval(pl.element().count()),
+            len=pl.col("a").list.eval(pl.element().len()),
+            unique=pl.col("a").list.eval(pl.element().unique()),
+        )
+    ).to_dict(as_series=False) == {
+        "count": [[0], [0], [0]],
+        "len": [[2147483648], [2147483647], [2147483646]],
+        "unique": [[None], [None], [None]],
+    }
