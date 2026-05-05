@@ -1417,9 +1417,6 @@ naive plan: (run LazyFrame.explain(optimized=True) to see the optimized plan)
 
         engine = _select_engine(engine)
 
-        if engine == "streaming":
-            issue_unstable_warning("streaming mode is considered unstable.")
-
         if optimized:
             optimizations = optimizations.__copy__()
             optimizations._pyoptflags.streaming = engine == "streaming"
@@ -1609,9 +1606,6 @@ naive plan: (run LazyFrame.explain(optimized=True) to see the optimized plan)
         ... ).show_graph()  # doctest: +SKIP
         """
         engine = _select_engine(engine)
-
-        if engine == "streaming":
-            issue_unstable_warning("streaming mode is considered unstable.")
 
         optimizations = optimizations.__copy__()
         optimizations._pyoptflags.streaming = engine == "streaming"
@@ -2297,7 +2291,7 @@ naive plan: (run LazyFrame.explain(optimized=True) to see the optimized plan)
         **_kwargs: Any,
     ) -> DataFrame | InProcessQuery:
         """
-        Materialize this LazyFrame into a DataFrame.
+        Materialize this `LazyFrame` into a `DataFrame`.
 
         By default, all query optimizations are enabled. Individual optimizations may
         be disabled by setting the corresponding parameter to `False`.
@@ -2485,9 +2479,6 @@ naive plan: (run LazyFrame.explain(optimized=True) to see the optimized plan)
 
         if new_streaming:
             engine = "streaming"
-
-        if engine == "streaming":
-            issue_unstable_warning("streaming mode is considered unstable.")
 
         callback = _gpu_engine_callback(
             engine,
@@ -6151,10 +6142,10 @@ naive plan: (run LazyFrame.explain(optimized=True) to see the optimized plan)
                  - Returns the Cartesian product of rows from both tables
                * - **semi**
                  - Returns rows from the left table that have a match in the right
-                   table.
+                   table. Does not return columns from the right table.
                * - **anti**
                  - Returns rows from the left table that have no match in the right
-                   table.
+                   table. Does not return columns from the right table.
 
         left_on
             Join column of the left DataFrame.
